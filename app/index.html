@@ -35,9 +35,16 @@
     .item strong{display:block;margin-bottom:4px;font-size:14px}.item span{display:block;color:var(--muted);font-size:12px;line-height:1.5}
     .tag{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;margin-right:5px;color:var(--green);background:#ecfdf5;border:1px solid #a7f3d0;font-size:11px;font-weight:900}
     .tag.missing{color:var(--red);background:#fef2f2;border-color:#fecaca}.tag.core{color:var(--blue);background:#eff6ff;border-color:#bfdbfe}.tag.reach{color:var(--amber);background:#fffbeb;border-color:#fcd34d}
-    .graph-panel{grid-column:1/-1;position:relative;overflow:hidden}canvas{width:100%;height:340px;display:block;background:#fbfcff}
+    .wide{grid-column:1/-1}
+    .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    .metric{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff}
+    .metric b{display:block;font-size:22px;line-height:1.1}.metric span{display:block;margin-top:5px;color:var(--muted);font-size:12px}
+    .evidence-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .step{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff}
+    .step small{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;background:#eff6ff;color:var(--blue);font-weight:900;font-size:11px}
+    .step strong{display:block;margin-bottom:6px;font-size:14px}.step p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
     .empty{color:var(--muted);font-size:13px;line-height:1.6}
-    @media (max-width:900px){main{grid-template-columns:1fr}.result{grid-template-columns:1fr}.bubble{max-width:100%}.composer{grid-template-columns:1fr}}
+    @media (max-width:900px){main{grid-template-columns:1fr}.result,.metric-grid,.evidence-flow{grid-template-columns:1fr}.bubble{max-width:100%}.composer{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -80,7 +87,8 @@
         <article class="panel box"><h2>유사 학과</h2><div class="list" id="similar"><div class="empty">아직 상담 결과가 없습니다.</div></div></article>
         <article class="panel box"><h2>대학 추천</h2><div class="list" id="admission"><div class="empty">내신 입력 후 상담하면 표시됩니다.</div></div></article>
         <article class="panel box"><h2>대체 유사 학과/대학</h2><div class="list" id="alternatives"><div class="empty">입시결과 샘플과 연결되면 표시됩니다.</div></div></article>
-        <article class="panel graph-panel"><canvas id="graph" width="900" height="340"></canvas></article>
+        <article class="panel box wide"><h2>상담 리포트</h2><div id="report"><div class="empty">상담 결과가 생성되면 준비도 요약이 표시됩니다.</div></div></article>
+        <article class="panel box wide"><h2>추천 근거</h2><div id="evidence"><div class="empty">학교 편제표, 학과 과목 근거, 입시결과 연결 관계가 표시됩니다.</div></div></article>
       </section>
     </section>
   </main>
@@ -138,7 +146,8 @@
       renderPlan(data.plan || []);
       renderSimilar(data.similar_majors || []);
       renderAdmission(data.admission || {});
-      drawGraph(data.graph || {nodes: [], edges: []});
+      renderReport(data);
+      renderEvidence(data);
     }
 
     function renderSubjects(id, items, missing) {
@@ -208,48 +217,44 @@
         </div>`;
     }
 
-    function drawGraph(graph) {
-      const canvas = $("graph");
-      const ctx = canvas.getContext("2d");
-      const width = canvas.width;
-      const height = canvas.height;
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = "#fbfcff";
-      ctx.fillRect(0, 0, width, height);
-      const nodes = (graph.nodes || []).slice(0, 14);
-      if (!nodes.length) {
-        ctx.fillStyle = "#64748b";
-        ctx.font = "14px system-ui";
-        ctx.fillText("상담 결과가 생성되면 근거 그래프가 표시됩니다.", 28, 44);
-        return;
-      }
-      const center = { x: width / 2, y: height / 2 };
-      const radius = Math.min(width, height) * 0.34;
-      const positioned = {};
-      nodes.forEach((node, index) => {
-        if (index === 0) positioned[node.id] = { ...node, x: center.x - 230, y: center.y };
-        else if (index === 1) positioned[node.id] = { ...node, x: center.x + 210, y: center.y };
-        else {
-          const angle = ((index - 2) / Math.max(1, nodes.length - 2)) * Math.PI * 2;
-          positioned[node.id] = { ...node, x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius };
-        }
-      });
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.lineWidth = 1.4;
-      (graph.edges || []).forEach(edge => {
-        const a = positioned[edge.source], b = positioned[edge.target];
-        if (!a || !b) return;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      });
-      Object.values(positioned).forEach(node => {
-        ctx.beginPath(); ctx.fillStyle = color(node.type); ctx.arc(node.x, node.y, 28, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.font = "700 11px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(node.label.length > 7 ? node.label.slice(0, 7) : node.label, node.x, node.y);
-      });
+    function renderReport(data) {
+      const admission = data.admission || {};
+      const byType = admission.by_type || {};
+      const coreTotal = (data.available || []).length + (data.completed || []).length + (data.unavailable || []).length;
+      const availableCount = (data.available || []).length;
+      const missingCount = (data.unavailable || []).length;
+      const subjectReady = coreTotal ? Math.round(((availableCount + (data.completed || []).length) / coreTotal) * 100) : 0;
+      const 교과 = byType["교과"] || {};
+      const 종합 = byType["종합"] || {};
+      $("report").innerHTML = `
+        <div class="metric-grid">
+          <div class="metric"><b>${subjectReady}%</b><span>과목 준비도</span></div>
+          <div class="metric"><b>${availableCount}</b><span>학교 편제표에서 선택 가능</span></div>
+          <div class="metric"><b>${missingCount}</b><span>확인 필요 과목</span></div>
+          <div class="metric"><b>${(admission.similar || []).length}</b><span>대체 유사 학과 후보</span></div>
+          <div class="metric"><b>${교과.count || 0}</b><span>교과 비교 후보</span></div>
+          <div class="metric"><b>${종합.count || 0}</b><span>종합 비교 후보</span></div>
+          <div class="metric"><b>${(admission.target || []).length}</b><span>적정권 후보</span></div>
+          <div class="metric"><b>${(admission.reach || []).length}</b><span>상향권 후보</span></div>
+        </div>`;
     }
 
-    function color(type) {
-      return {school:"#0e7490", major:"#b45309", available:"#047857", missing:"#dc2626", admission:"#2563eb"}[type] || "#2563eb";
+    function renderEvidence(data) {
+      const available = data.available || [];
+      const plan = data.plan || [];
+      const admission = data.admission || {};
+      const 교과 = admission.by_type && admission.by_type["교과"];
+      const 종합 = admission.by_type && admission.by_type["종합"];
+      const firstSubjects = available.slice(0, 4).map(x => x.subject).join(", ") || "확인된 과목 없음";
+      const firstPlan = plan[0] ? `${plan[0].semester}: ${(plan[0].subjects || []).join(", ")}` : "학기별 배치 전";
+      const 교과Text = 교과 && 교과.target && 교과.target[0] ? `${교과.target[0].university} ${교과.target[0].major}` : "후보 부족";
+      const 종합Text = 종합 && 종합.target && 종합.target[0] ? `${종합.target[0].university} ${종합.target[0].major}` : "후보 부족";
+      $("evidence").innerHTML = `
+        <div class="evidence-flow">
+          <div class="step"><small>School</small><strong>${escapeHtml(data.school || "학교")}</strong><p>편제표에서 실제 선택 가능한 과목을 먼저 걸렀습니다. ${escapeHtml(firstPlan)}</p></div>
+          <div class="step"><small>Major Track</small><strong>${escapeHtml(data.major || "목표 학과")}</strong><p>학과별 핵심/권장 과목과 학교 개설 과목을 연결했습니다. 주요 과목: ${escapeHtml(firstSubjects)}</p></div>
+          <div class="step"><small>Admission Result</small><strong>교과/종합 분리</strong><p>교과 후보: ${escapeHtml(교과Text)}<br>종합 후보: ${escapeHtml(종합Text)}</p></div>
+        </div>`;
     }
 
     function escapeHtml(value) {
@@ -272,7 +277,6 @@
     });
 
     loadMeta();
-    drawGraph({nodes: [], edges: []});
     addMessage("bot", "학교, 학년, 내신, 목표 학과를 넣고 질문해 주세요. 과목 로드맵과 대학어디가 샘플 기반 대학/유사학과 후보를 함께 보여드립니다.");
   </script>
 </body>
