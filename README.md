@@ -71,23 +71,43 @@ LLM은 그래프 검색 결과를 바탕으로 다음을 수행합니다.
 
 ```text
 roadmap_project/
-  app/                  # 정적 MVP 화면 프로토타입
+  app/                  # Graph RAG 챗봇 웹 UI
+  roadmap_rag/          # 엑셀 기반 그래프 로더와 추천 엔진
+  server.py             # 표준 라이브러리 기반 챗봇 API 서버
   data/                 # 공개 가능한 샘플/메타 데이터
   docs/                 # 설계 문서
   scripts/              # 데이터 점검 및 변환 스크립트
 ```
 
-## 데모
+## 실행 데모
 
-정적 프로토타입은 [app/index.html](app/index.html)에서 확인할 수 있습니다. 실제 LLM과 그래프 DB에 연결하기 전, 사용 흐름과 상담 결과 형태를 보여주는 화면입니다.
+챗봇 MVP는 [server.py](server.py)가 엑셀 로드맵 DB를 읽어 메모리 그래프를 만들고, [app/index.html](app/index.html)에서 `/api/chat`으로 질의하는 방식으로 동작합니다.
 
 로컬에서 확인:
 
 ```powershell
-python -m http.server 8000 --directory app
+python server.py
 ```
 
 브라우저에서 `http://localhost:8000` 접속
+
+API 테스트:
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8000/api/chat `
+  -Method POST `
+  -ContentType "application/json; charset=utf-8" `
+  -Body '{"message":"울산고 고1이고 컴퓨터공학 희망인데 과목 추천해줘","profile":{"school":"울산고","grade":1,"major":"컴퓨터공학","taken":"공통수학1, 공통수학2, 통합과학1"}}'
+```
+
+현재 구현된 기능:
+
+- `학교편제표` 시트를 읽어 학교별 개설 과목과 학기 정보를 구성
+- `로드맵DB_v2_대학트랙집계` 시트를 읽어 학과별 핵심/권장/참고 과목 구성
+- 깨진 UTF-8 텍스트를 자동 복구해 학교명과 과목명 정규화
+- 학교 편제표 안에서 실제 확인되는 추천 과목과 확인 필요 과목 분리
+- 학기별 과목 선택 로드맵 생성
+- 추천 근거를 그래프 노드/엣지 형태로 UI에 시각화
 
 ## 다음 구현 계획
 

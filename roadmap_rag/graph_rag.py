@@ -1,0 +1,402 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+import re
+from typing import Any
+
+import openpyxl
+
+
+SEMESTER_COLUMNS = [
+    ("1학년 1학기", 7),
+    ("1학년 2학기", 8),
+    ("2학년 1학기", 9),
+    ("2학년 2학기", 10),
+    ("3학년 1학기", 11),
+    ("3학년 2학기", 12),
+]
+
+
+@dataclass(frozen=True)
+class SubjectOffering:
+    name: str
+    group: str
+    subject_type: str
+    semesters: tuple[str, ...]
+    credits: float = 0.0
+
+
+@dataclass(frozen=True)
+class MajorSubject:
+    major: str
+    subject_code: str
+    subject: str
+    group: str
+    subject_type: str
+    recommend_type: str
+    priority: float
+    university_count: float
+    evidence: str
+
+
+@dataclass
+class RoadmapGraph:
+    schools: dict[str, list[SubjectOffering]] = field(default_factory=dict)
+    majors: dict[str, list[MajorSubject]] = field(default_factory=dict)
+    subject_aliases: dict[str, str] = field(default_factory=dict)
+
+
+def repair_text(value: Any) -> str:
+    """Repair common UTF-8 text that was accidentally decoded as latin-1/cp1252."""
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    if any(marker in text for marker in ("ì", "í", "ê", "ë", "â")):
+        for encoding in ("latin1", "cp1252"):
+            try:
+                repaired = text.encode(encoding).decode("utf-8")
+            except UnicodeError:
+                continue
+            if repaired and repaired != text:
+                return repaired.strip()
+    return text
+
+
+def norm(value: Any) -> str:
+    text = repair_text(value).lower()
+    text = text.replace("Ⅰ", "1").replace("Ⅱ", "2")
+    text = re.sub(r"[\s·ㆍ․,/_()\-]+", "", text)
+    return text
+
+
+def to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value in (None, ""):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def split_subjects(text: str) -> list[str]:
+    raw = re.split(r"[,/|]+|\n|ㆍ|·", text or "")
+    return [repair_text(item).strip() for item in raw if repair_text(item).strip()]
+
+
+class GraphRAGEngine:
+    def __init__(self, workbook_path: Path):
+        self.workbook_path = workbook_path
+        self.graph = self._load_graph(workbook_path)
+
+    @classmethod
+    def from_default_workbook(cls) -> "GraphRAGEngine":
+        root = Path(__file__).resolve().parents[1]
+        return cls(root.parent / "울산고교_과목로드맵_수정.xlsx")
+
+    def meta(self) -> dict[str, Any]:
+        return {
+            "workbook": self.workbook_path.name,
+            "school_count": len(self.graph.schools),
+            "major_count": len(self.graph.majors),
+            "schools": sorted(self.graph.schools)[:200],
+            "majors": sorted(self.graph.majors)[:300],
+        }
+
+    def chat(self, message: str, profile: dict[str, Any] | None = None) -> dict[str, Any]:
+        profile = profile or {}
+        school = self._pick_school(profile.get("school") or message)
+        major = self._pick_major(profile.get("major") or message)
+        grade = self._pick_grade(profile.get("grade") or message)
+        taken = self._pick_taken(profile.get("taken") or message)
+
+        if not school:
+            return self._need_more("학교명을 알려주면, 해당 학교 편제표 안에서 실제 선택 가능한 과목만 골라볼 수 있어요.")
+        if not major:
+            return self._need_more("목표 학과나 계열을 알려주면, 대학트랙 기준 핵심/권장 과목을 찾아볼게요.")
+
+        recommendation = self.recommend(school=school, major=major, grade=grade, taken_subjects=taken)
+        answer = self._compose_answer(recommendation)
+        recommendation["answer"] = answer
+        return recommendation
+
+    def recommend(self, school: str, major: str, grade: int = 1, taken_subjects: list[str] | None = None) -> dict[str, Any]:
+        taken_subjects = taken_subjects or []
+        offerings = self.graph.schools.get(school, [])
+        major_subjects = self.graph.majors.get(major, [])
+        school_by_norm = {norm(item.name): item for item in offerings}
+        taken_norms = {norm(item) for item in taken_subjects}
+
+        ranked = self._rank_major_subjects(major_subjects)
+        available = []
+        unavailable = []
+        completed = []
+
+        for item in ranked:
+            key = norm(item.subject)
+            offering = school_by_norm.get(key)
+            row = {
+                "subject": item.subject,
+                "recommend_type": item.recommend_type,
+                "priority": item.priority,
+                "university_count": item.university_count,
+                "evidence": item.evidence,
+                "group": item.group,
+                "semesters": list(offering.semesters) if offering else [],
+            }
+            if key in taken_norms:
+                completed.append(row)
+            elif offering:
+                available.append(row)
+            else:
+                unavailable.append(row)
+
+        plan = self._build_plan(available, grade)
+        similar_majors = self._similar_majors(major)
+
+        return {
+            "mode": "recommendation",
+            "school": school,
+            "major": major,
+            "grade": grade,
+            "taken_subjects": taken_subjects,
+            "completed": completed[:8],
+            "available": available[:10],
+            "unavailable": unavailable[:8],
+            "plan": plan,
+            "similar_majors": similar_majors,
+            "graph": self._graph_payload(school, major, available[:6], unavailable[:4]),
+            "sources": [
+                "울산고교_과목로드맵_수정.xlsx / 학교편제표",
+                "울산고교_과목로드맵_수정.xlsx / 로드맵DB_v2_대학트랙집계",
+            ],
+            "caution": "내신컷 데이터는 아직 연결하지 않았으므로, 현재 답변은 과목 적합도와 학교 편제표 기준 상담입니다.",
+        }
+
+    def _load_graph(self, workbook_path: Path) -> RoadmapGraph:
+        if not workbook_path.exists():
+            raise FileNotFoundError(f"Workbook not found: {workbook_path}")
+
+        workbook = openpyxl.load_workbook(workbook_path, data_only=True, read_only=True)
+        graph = RoadmapGraph()
+        self._load_aliases(workbook, graph)
+        self._load_school_offerings(workbook, graph)
+        self._load_major_subjects(workbook, graph)
+        return graph
+
+    def _load_aliases(self, workbook: Any, graph: RoadmapGraph) -> None:
+        if "과목별칭" not in workbook.sheetnames:
+            return
+        sheet = workbook["과목별칭"]
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            raw = repair_text(row[1] if len(row) > 1 else "")
+            normalized = repair_text(row[2] if len(row) > 2 else "")
+            if raw and normalized:
+                graph.subject_aliases[norm(raw)] = normalized
+
+    def _load_school_offerings(self, workbook: Any, graph: RoadmapGraph) -> None:
+        sheet = workbook["학교편제표"]
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if len(row) < 5:
+                continue
+            school = repair_text(row[0])
+            subject = repair_text(row[4])
+            if not school or not subject:
+                continue
+            semesters = []
+            for label, idx in SEMESTER_COLUMNS:
+                if idx < len(row) and to_float(row[idx]) > 0:
+                    semesters.append(label)
+            offering = SubjectOffering(
+                name=subject,
+                group=repair_text(row[2]),
+                subject_type=repair_text(row[3]),
+                semesters=tuple(semesters),
+                credits=to_float(row[6] if len(row) > 6 else 0),
+            )
+            graph.schools.setdefault(school, []).append(offering)
+
+    def _load_major_subjects(self, workbook: Any, graph: RoadmapGraph) -> None:
+        sheet = workbook["로드맵DB_v2_대학트랙집계"]
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if len(row) < 12:
+                continue
+            major = repair_text(row[1])
+            subject_code = repair_text(row[2])
+            subject = repair_text(row[3])
+            if not major or not subject:
+                continue
+            if subject_code in {"UNMAPPED"} or subject_code.startswith("BROAD-"):
+                continue
+            item = MajorSubject(
+                major=major,
+                subject_code=subject_code,
+                subject=subject,
+                group=repair_text(row[4]),
+                subject_type=repair_text(row[5]),
+                recommend_type=repair_text(row[6]) or "참고",
+                priority=to_float(row[7], 99.0),
+                university_count=to_float(row[8], 0.0),
+                evidence=repair_text(row[11]),
+            )
+            graph.majors.setdefault(major, []).append(item)
+
+    def _pick_school(self, text: Any) -> str:
+        text_norm = norm(text)
+        if not text_norm:
+            return ""
+        for school in self.graph.schools:
+            if norm(school) in text_norm or text_norm in norm(school):
+                return school
+        return ""
+
+    def _pick_major(self, text: Any) -> str:
+        repaired = repair_text(text)
+        replacements = {
+            "컴공": "컴퓨터공학",
+            "컴퓨터": "컴퓨터공학",
+            "기계": "기계공학",
+            "생명": "생명공학",
+            "바이오": "생명공학",
+        }
+        for key, value in replacements.items():
+            if key in repaired:
+                repaired = value
+                break
+        text_norm = norm(repaired)
+        if not text_norm:
+            return ""
+        for major in self.graph.majors:
+            major_norm = norm(major)
+            if major_norm == text_norm or major_norm in text_norm or text_norm in major_norm:
+                return major
+        return self._best_major_by_overlap(repaired)
+
+    def _best_major_by_overlap(self, text: str) -> str:
+        tokens = set(re.findall(r"[가-힣A-Za-z0-9]+", repair_text(text)))
+        best = ("", 0)
+        for major in self.graph.majors:
+            score = sum(1 for token in tokens if token and token in major)
+            if score > best[1]:
+                best = (major, score)
+        return best[0] if best[1] else ""
+
+    def _pick_grade(self, text: Any) -> int:
+        if isinstance(text, int):
+            return max(1, min(3, text))
+        match = re.search(r"([123])\s*학년|고\s*([123])|예비\s*고\s*([123])", repair_text(text))
+        if not match:
+            return 1
+        return int(next(group for group in match.groups() if group))
+
+    def _pick_taken(self, text: Any) -> list[str]:
+        if isinstance(text, list):
+            return [repair_text(item) for item in text if repair_text(item)]
+        return split_subjects(repair_text(text))
+
+    def _rank_major_subjects(self, subjects: list[MajorSubject]) -> list[MajorSubject]:
+        weight = {"핵심": 0, "권장": 1, "참고": 2}
+        seen = set()
+        ranked = []
+        for item in sorted(subjects, key=lambda x: (weight.get(x.recommend_type, 3), -x.university_count, x.priority)):
+            key = norm(item.subject)
+            if key in seen:
+                continue
+            seen.add(key)
+            ranked.append(item)
+        return ranked
+
+    def _build_plan(self, available: list[dict[str, Any]], grade: int) -> list[dict[str, Any]]:
+        current_order = max(1, min(6, (grade - 1) * 2 + 1))
+        plan: dict[str, list[dict[str, Any]]] = {}
+        for item in available:
+            future_semesters = [
+                semester for semester in item["semesters"]
+                if self._semester_order(semester) >= current_order
+            ]
+            semester = future_semesters[0] if future_semesters else (item["semesters"][0] if item["semesters"] else "편제표 확인 필요")
+            plan.setdefault(semester, []).append(item)
+
+        ordered = []
+        for semester, items in sorted(plan.items(), key=lambda pair: self._semester_order(pair[0])):
+            ordered.append(
+                {
+                    "semester": semester,
+                    "subjects": [item["subject"] for item in items[:4]],
+                    "reason": f"{items[0]['recommend_type']} 과목을 우선 배치했습니다. 근거: {items[0]['evidence']}",
+                }
+            )
+        return ordered[:5]
+
+    def _semester_order(self, semester: str) -> int:
+        match = re.search(r"([123])학년\s*([12])학기", semester)
+        if not match:
+            return 99
+        return (int(match.group(1)) - 1) * 2 + int(match.group(2))
+
+    def _similar_majors(self, major: str) -> list[str]:
+        tokens = [token for token in re.split(r"공학|과학|학과|학부|전공", major) if token]
+        result = []
+        for candidate in sorted(self.graph.majors):
+            if candidate == major:
+                continue
+            if any(token and token in candidate for token in tokens) or any(token and token in major for token in re.split(r"공학|과학|학과|학부|전공", candidate)):
+                result.append(candidate)
+            if len(result) >= 5:
+                break
+        return result
+
+    def _graph_payload(self, school: str, major: str, available: list[dict[str, Any]], unavailable: list[dict[str, Any]]) -> dict[str, Any]:
+        nodes = [
+            {"id": f"school:{school}", "label": school, "type": "school"},
+            {"id": f"major:{major}", "label": major, "type": "major"},
+        ]
+        edges = []
+        for item in available:
+            sid = f"subject:{item['subject']}"
+            nodes.append({"id": sid, "label": item["subject"], "type": "available"})
+            edges.append({"source": f"school:{school}", "target": sid, "label": "개설"})
+            edges.append({"source": sid, "target": f"major:{major}", "label": item["recommend_type"]})
+        for item in unavailable:
+            sid = f"subject:{item['subject']}"
+            nodes.append({"id": sid, "label": item["subject"], "type": "missing"})
+            edges.append({"source": sid, "target": f"major:{major}", "label": item["recommend_type"]})
+        return {"nodes": nodes, "edges": edges}
+
+    def _compose_answer(self, result: dict[str, Any]) -> str:
+        available = result["available"]
+        unavailable = result["unavailable"]
+        completed = result["completed"]
+        plan = result["plan"]
+
+        lines = [
+            f"{result['school']} {result['grade']}학년 기준으로 {result['major']} 진로를 보면, 학교 편제표 안에서 바로 연결되는 추천 과목은 {self._join_subjects([x['subject'] for x in available[:5]])}입니다.",
+        ]
+        if completed:
+            lines.append(f"이미 입력한 과목 중에서는 {self._join_subjects([x['subject'] for x in completed[:4]])}이 목표 학과 추천 과목과 겹칩니다.")
+        if unavailable:
+            lines.append(f"다만 {self._join_subjects([x['subject'] for x in unavailable[:4]])}은 목표 학과 근거에는 나오지만, 현재 학교 편제표에서는 바로 확인되지 않아 대체 과목이나 실제 개설 여부 확인이 필요합니다.")
+        if plan:
+            first = plan[0]
+            lines.append(f"우선순위는 {first['semester']}에 {self._join_subjects(first['subjects'])}부터 잡는 방식이 좋습니다.")
+        lines.append(result["caution"])
+        return " ".join(lines)
+
+    def _join_subjects(self, subjects: list[str]) -> str:
+        return ", ".join(subjects) if subjects else "확인된 과목 없음"
+
+    def _need_more(self, message: str) -> dict[str, Any]:
+        return {
+            "mode": "need_more",
+            "answer": message,
+            "available": [],
+            "unavailable": [],
+            "completed": [],
+            "plan": [],
+            "similar_majors": [],
+            "graph": {"nodes": [], "edges": []},
+            "sources": [],
+            "caution": "",
+        }
