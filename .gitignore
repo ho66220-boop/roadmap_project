@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Local raw data and exports
+raw/
+exports/
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

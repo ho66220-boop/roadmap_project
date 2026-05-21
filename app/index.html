@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>울산 고교 과목 로드맵 Graph RAG MVP</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --line: #dfe4ed;
+      --text: #182230;
+      --muted: #64748b;
+      --blue: #2563eb;
+      --green: #047857;
+      --red: #dc2626;
+      --amber: #b45309;
+      --cyan: #0e7490;
+      --shadow: 0 14px 40px rgba(15, 23, 42, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .92);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .bar {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: #111827;
+      color: white;
+      font-weight: 800;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 22px 18px 36px;
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .controls {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    select, input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 11px;
+      font: inherit;
+      color: var(--text);
+      background: white;
+    }
+
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      background: var(--blue);
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:hover { filter: brightness(.96); }
+
+    .workspace {
+      display: grid;
+      gap: 18px;
+    }
+
+    .graph {
+      position: relative;
+      min-height: 310px;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 310px;
+      display: block;
+      background: #fbfcff;
+    }
+
+    .legend {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .dot.green { background: var(--green); }
+    .dot.amber { background: var(--amber); }
+    .dot.cyan { background: var(--cyan); }
+
+    .result {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .answer {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 13px 14px;
+      border-radius: 8px;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 13px;
+      background: white;
+      min-height: 128px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .card ul {
+      padding-left: 18px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+
+    .roadmap {
+      display: grid;
+      gap: 10px;
+    }
+
+    .term {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .term strong {
+      color: var(--blue);
+      font-size: 13px;
+    }
+
+    .subjects {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 6px;
+    }
+
+    .subject {
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #ecfdf5;
+      color: var(--green);
+      border: 1px solid #a7f3d0;
+    }
+
+    .term p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: 1fr; }
+      .term { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div class="mark">R</div>
+      <div>
+        <h1>울산 고교 과목 로드맵 Graph RAG MVP</h1>
+        <div class="sub">편제표, 2028 시행계획, 과목 로드맵 DB를 연결한 상담형 추천 프로토타입</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel controls" aria-label="상담 조건">
+      <label>
+        학년
+        <select id="grade">
+          <option>예비 고1</option>
+          <option selected>고1</option>
+          <option>고2</option>
+          <option>고3</option>
+        </select>
+      </label>
+      <label>
+        학교
+        <select id="school">
+          <option>울산고</option>
+          <option>강동고</option>
+          <option>대송고</option>
+          <option>무룡고</option>
+        </select>
+      </label>
+      <label>
+        목표 학과
+        <input id="major" value="컴퓨터공학" />
+      </label>
+      <label>
+        이수 과목
+        <textarea id="taken">공통수학1, 공통수학2, 공통과학1</textarea>
+      </label>
+      <button id="run">로드맵 상담 생성</button>
+    </section>
+
+    <section class="workspace">
+      <section class="panel graph" aria-label="Graph RAG 관계 시각화">
+        <canvas id="graph" width="820" height="310"></canvas>
+        <div class="legend">
+          <span class="chip"><span class="dot"></span>학생</span>
+          <span class="chip"><span class="dot green"></span>과목</span>
+          <span class="chip"><span class="dot amber"></span>학과</span>
+          <span class="chip"><span class="dot cyan"></span>학교 편제표</span>
+        </div>
+      </section>
+
+      <section class="panel result">
+        <h2 id="title">컴퓨터공학 진학을 위한 과목 선택 상담</h2>
+        <div class="answer" id="answer"></div>
+
+        <div class="cards">
+          <article class="card">
+            <h3>핵심 과목</h3>
+            <ul id="core"></ul>
+          </article>
+          <article class="card">
+            <h3>보완 과목</h3>
+            <ul id="rec"></ul>
+          </article>
+          <article class="card">
+            <h3>근거 데이터</h3>
+            <ul>
+              <li>학교 편제표 79개</li>
+              <li>2028 시행계획 82개</li>
+              <li>로드맵 DB 12개 시트</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="roadmap" id="roadmap"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const sample = {
+      computer: {
+        core: ["대수", "미적분Ⅱ", "확률과 통계", "물리학"],
+        rec: ["인공지능 기초", "정보과학", "빅 데이터 분석"],
+        plan: [
+          ["2학년 1학기", ["대수", "물리학"], "공학계열 핵심 과목과 다수 대학 컴퓨터공학 모집단위 권장 과목에 해당합니다."],
+          ["2학년 2학기", ["미적분Ⅱ", "인공지능 기초"], "수학 심화 역량과 진로 연계 과목을 함께 보완합니다."],
+          ["3학년 1학기", ["확률과 통계", "정보과학"], "데이터·AI 관련 학과 확장 가능성을 확보합니다."]
+        ]
+      },
+      bio: {
+        core: ["생명과학", "화학", "미적분Ⅱ"],
+        rec: ["확률과 통계", "융합과학 탐구", "보건"],
+        plan: [
+          ["2학년 1학기", ["생명과학", "화학"], "생명계열 학업역량을 가장 직접적으로 보여주는 조합입니다."],
+          ["2학년 2학기", ["미적분Ⅱ", "융합과학 탐구"], "정량 분석과 탐구 설계 역량을 보완합니다."],
+          ["3학년 1학기", ["확률과 통계", "보건"], "의생명·보건계열 유사 학과 탐색 폭을 넓힙니다."]
+        ]
+      }
+    };
+
+    const colors = {
+      student: "#2563eb",
+      subject: "#047857",
+      major: "#b45309",
+      school: "#0e7490"
+    };
+
+    function pickMajor(value) {
+      return /생명|바이오|의생명|간호|보건/.test(value) ? sample.bio : sample.computer;
+    }
+
+    function renderList(id, items) {
+      document.getElementById(id).innerHTML = items.map(item => `<li>${item}</li>`).join("");
+    }
+
+    function renderRoadmap(plan) {
+      document.getElementById("roadmap").innerHTML = plan.map(([term, subjects, reason]) => `
+        <article class="term">
+          <strong>${term}</strong>
+          <div>
+            <div class="subjects">${subjects.map(s => `<span class="subject">${s}</span>`).join("")}</div>
+            <p>${reason}</p>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function drawGraph(model) {
+      const canvas = document.getElementById("graph");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const nodes = [
+        {x: 110, y: 155, label: "학생", type: "student"},
+        {x: 310, y: 82, label: document.getElementById("school").value, type: "school"},
+        {x: 315, y: 220, label: document.getElementById("major").value, type: "major"},
+        {x: 560, y: 70, label: model.core[0], type: "subject"},
+        {x: 610, y: 150, label: model.core[1], type: "subject"},
+        {x: 560, y: 235, label: model.rec[0], type: "subject"}
+      ];
+
+      const edges = [[0,1], [0,2], [1,3], [1,4], [2,3], [2,4], [2,5]];
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#cbd5e1";
+      edges.forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(nodes[a].x, nodes[a].y);
+        ctx.lineTo(nodes[b].x, nodes[b].y);
+        ctx.stroke();
+      });
+
+      nodes.forEach(node => {
+        ctx.beginPath();
+        ctx.fillStyle = colors[node.type];
+        ctx.arc(node.x, node.y, 28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "700 12px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const label = node.label.length > 7 ? node.label.slice(0, 7) : node.label;
+        ctx.fillText(label, node.x, node.y);
+      });
+    }
+
+    function run() {
+      const grade = document.getElementById("grade").value;
+      const school = document.getElementById("school").value;
+      const major = document.getElementById("major").value.trim() || "목표 학과";
+      const taken = document.getElementById("taken").value.trim();
+      const model = pickMajor(major);
+
+      document.getElementById("title").textContent = `${major} 진학을 위한 과목 선택 상담`;
+      document.getElementById("answer").textContent =
+        `${school} ${grade} 학생 기준으로, 현재 이수 과목(${taken})은 기초 과목 중심입니다. ` +
+        `${major} 계열은 ${model.core.slice(0, 3).join(", ")} 과목의 충족도가 중요하므로, ` +
+        `남은 학기에는 학교 편제표에서 실제 선택 가능한 핵심 과목을 먼저 확보하고 진로 연계 과목을 보완하는 순서가 적절합니다.`;
+
+      renderList("core", model.core);
+      renderList("rec", model.rec);
+      renderRoadmap(model.plan);
+      drawGraph(model);
+    }
+
+    document.getElementById("run").addEventListener("click", run);
+    run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "base_workbook": {
+    "name": "울산고교_과목로드맵_수정.xlsx",
+    "sheets": [
+      {"name": "학교편제표", "rows": 3883, "columns": 13},
+      {"name": "대학트랙", "rows": 6675, "columns": 6},
+      {"name": "학교편제슬롯", "rows": 987, "columns": 26},
+      {"name": "학교편제슬롯과목", "rows": 1202, "columns": 26},
+      {"name": "레거시과목명", "rows": 23, "columns": 4},
+      {"name": "로컬과목규칙", "rows": 45, "columns": 5},
+      {"name": "학과트랙", "rows": 139, "columns": 6},
+      {"name": "로드맵DB", "rows": 171, "columns": 17},
+      {"name": "과목별칭", "rows": 654, "columns": 9},
+      {"name": "별칭규칙", "rows": 997, "columns": 8},
+      {"name": "공식 과목명", "rows": 171, "columns": 8},
+      {"name": "로드맵DB_v2_대학트랙집계", "rows": 3726, "columns": 17}
+    ]
+  },
+  "raw_sources": {
+    "ulsan_curriculum_files": 79,
+    "admission_plan_files_2028": 82,
+    "subject_selection_guides": 4,
+    "legacy_webapp_files": ["code.txt", "html.txt"]
+  },
+  "notes": [
+    "원본 자료는 저장소 외부 Road 폴더에 보관되어 있으며, 공개 저장소에는 변환 스크립트와 샘플/메타데이터 중심으로 포함한다.",
+    "고3 내신 기반 추천은 내신컷 데이터 추가 확보 후 구현한다."
+  ]
+}
