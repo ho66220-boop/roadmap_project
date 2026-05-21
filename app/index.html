@@ -56,6 +56,7 @@
       <label>학교<input id="school" list="school-list" value="울산고" /><datalist id="school-list"></datalist></label>
       <label>학년<select id="grade"><option value="1">고1</option><option value="2">고2</option><option value="3">고3</option></select></label>
       <label>내신 평균 등급<input id="school_grade" type="number" min="1" max="9" step="0.01" value="2.7" /></label>
+      <label>전형 구분<select id="admission_focus"><option value="전체">교과/종합 같이 보기</option><option value="교과">학생부 교과</option><option value="종합">학생부 종합</option></select></label>
       <label>목표 학과<input id="major" list="major-list" value="컴퓨터공학" /><datalist id="major-list"></datalist></label>
       <label>이수 과목<textarea id="taken">공통수학1, 공통수학2, 통합과학1</textarea></label>
       <button id="quick">조건으로 상담하기</button>
@@ -92,6 +93,7 @@
         school: $("school").value.trim(),
         grade: Number($("grade").value),
         school_grade: Number($("school_grade").value) || null,
+        admission_focus: $("admission_focus").value,
         major: $("major").value.trim(),
         taken: $("taken").value.trim()
       };
@@ -177,12 +179,21 @@
         $("alternatives").innerHTML = `<div class="empty">대체 유사 학과 후보가 없습니다.</div>`;
         return;
       }
-      const combined = [
-        ...(admission.likely || []).map(x => ({...x, bandLabel: "안정"})),
-        ...(admission.target || []).map(x => ({...x, bandLabel: "적정"})),
-        ...(admission.reach || []).map(x => ({...x, bandLabel: "상향"}))
-      ].slice(0, 10);
-      $("admission").innerHTML = combined.length ? combined.map(renderAdmissionItem).join("") : `<div class="empty">내신 기준 후보가 없습니다.</div>`;
+      const sections = [];
+      for (const category of ["교과", "종합"]) {
+        const bucket = admission.by_type && admission.by_type[category];
+        if (!bucket || !bucket.count) continue;
+        const items = [
+          ...(bucket.likely || []).map(x => ({...x, bandLabel: "안정"})),
+          ...(bucket.target || []).map(x => ({...x, bandLabel: "적정"})),
+          ...(bucket.reach || []).map(x => ({...x, bandLabel: "상향"}))
+        ].slice(0, 5);
+        if (items.length) {
+          sections.push(`<div class="item"><strong>${category} 기준</strong><span>${category === "교과" ? "내신 환산등급 중심으로 비교합니다." : "내신은 참고로 보고 과목 선택과 활동 맥락을 함께 봐야 합니다."}</span></div>`);
+          sections.push(...items.map(renderAdmissionItem));
+        }
+      }
+      $("admission").innerHTML = sections.length ? sections.join("") : `<div class="empty">내신 기준 후보가 없습니다.</div>`;
       $("alternatives").innerHTML = (admission.similar || []).length ? admission.similar.slice(0, 10).map(renderAdmissionItem).join("") : `<div class="empty">대체 유사 학과 후보가 없습니다.</div>`;
     }
 
@@ -248,7 +259,7 @@
     $("send").addEventListener("click", () => ask($("message").value.trim()));
     $("quick").addEventListener("click", () => {
       const p = profile();
-      ask(`${p.school} 고${p.grade}이고 내신 ${p.school_grade}, ${p.major} 희망입니다. 이수 과목은 ${p.taken}입니다. 과목과 대학 후보를 추천해주세요.`);
+      ask(`${p.school} 고${p.grade}이고 내신 ${p.school_grade}, ${p.major} 희망입니다. ${p.admission_focus} 기준으로 과목과 대학 후보를 추천해주세요. 이수 과목은 ${p.taken}입니다.`);
     });
     $("sample").addEventListener("click", () => {
       $("major").value = "생명공학";

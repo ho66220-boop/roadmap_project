@@ -147,6 +147,7 @@ class GraphRAGEngine:
         grade = self._pick_grade(profile.get("grade") or message)
         taken = self._pick_taken(profile.get("taken") or message)
         school_grade = self._pick_school_grade(profile.get("school_grade") or profile.get("gpa") or message)
+        admission_focus = self._pick_admission_focus(profile.get("admission_focus") or message)
 
         if not school:
             return self._need_more("학교명을 알려주면 해당 학교 편제표 안에서 실제 선택 가능한 과목만 골라볼 수 있어요.")
@@ -159,6 +160,7 @@ class GraphRAGEngine:
             grade=grade,
             taken_subjects=taken,
             school_grade=school_grade,
+            admission_focus=admission_focus,
         )
         recommendation["answer"] = self._compose_answer(recommendation)
         return recommendation
@@ -170,6 +172,7 @@ class GraphRAGEngine:
         grade: int = 1,
         taken_subjects: list[str] | None = None,
         school_grade: float | None = None,
+        admission_focus: str = "전체",
     ) -> dict[str, Any]:
         taken_subjects = taken_subjects or []
         offerings = self.graph.schools.get(school, [])
@@ -201,7 +204,7 @@ class GraphRAGEngine:
             else:
                 unavailable.append(row)
 
-        admission = self._recommend_admissions(major=major, school_grade=school_grade)
+        admission = self._recommend_admissions(major=major, school_grade=school_grade, admission_focus=admission_focus)
         plan = self._build_plan(available, grade)
         similar_majors = self._similar_majors(major)
 
@@ -211,6 +214,7 @@ class GraphRAGEngine:
             "major": major,
             "grade": grade,
             "school_grade": school_grade,
+            "admission_focus": admission_focus,
             "taken_subjects": taken_subjects,
             "completed": completed[:8],
             "available": available[:10],
@@ -328,9 +332,9 @@ class GraphRAGEngine:
                     )
                 )
 
-    def _recommend_admissions(self, major: str, school_grade: float | None) -> dict[str, Any]:
+    def _recommend_admissions(self, major: str, school_grade: float | None, admission_focus: str = "전체") -> dict[str, Any]:
         if not self.graph.admissions:
-            return {"available": False, "message": "입시결과 CSV가 없어 대학 추천은 비활성화되어 있습니다.", "exact": [], "similar": [], "reach": [], "target": [], "likely": []}
+            return {"available": False, "message": "입시결과 CSV가 없어 대학 추천은 비활성화되어 있습니다.", "exact": [], "similar": [], "reach": [], "target": [], "likely": [], "by_type": {}}
         candidates = []
         for result in self.graph.admissions:
             similarity = self._major_similarity(major, result.major)
@@ -358,6 +362,7 @@ class GraphRAGEngine:
                     "match_type": "동일/직접 관련" if direct else "대체 유사 학과",
                     "direct": direct,
                     "band": band,
+                    "category": self._admission_category(result),
                 }
             )
 
@@ -366,18 +371,43 @@ class GraphRAGEngine:
             return (band_order.get(item["band"], 9), -item["similarity"], item["cutoff"])
 
         ranked = sorted(candidates, key=sort_key)
-        exact = [item for item in ranked if item["direct"]]
-        similar = [item for item in ranked if not item["direct"]]
+        by_type = {
+            category: self._admission_bucket([item for item in ranked if item["category"] == category])
+            for category in ("교과", "종합", "기타")
+        }
+        selected = ranked if admission_focus == "전체" else [item for item in ranked if item["category"] == admission_focus]
+        exact = [item for item in selected if item["direct"]]
+        similar = [item for item in selected if not item["direct"]]
         return {
             "available": True,
             "student_grade": school_grade,
+            "focus": admission_focus,
+            "by_type": by_type,
             "exact": exact[:8],
             "similar": similar[:8],
-            "likely": [item for item in ranked if item["band"] == "안정"][:5],
-            "target": [item for item in ranked if item["band"] == "적정"][:5],
-            "reach": [item for item in ranked if item["band"] == "상향"][:5],
+            "likely": [item for item in selected if item["band"] == "안정"][:5],
+            "target": [item for item in selected if item["band"] == "적정"][:5],
+            "reach": [item for item in selected if item["band"] == "상향"][:5],
             "count": len(candidates),
         }
+
+    def _admission_bucket(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "exact": [item for item in items if item["direct"]][:8],
+            "similar": [item for item in items if not item["direct"]][:8],
+            "likely": [item for item in items if item["band"] == "안정"][:5],
+            "target": [item for item in items if item["band"] == "적정"][:5],
+            "reach": [item for item in items if item["band"] == "상향"][:5],
+            "count": len(items),
+        }
+
+    def _admission_category(self, result: AdmissionResult) -> str:
+        text = f"{result.admission_type} {result.track_name}"
+        if "교과" in text:
+            return "교과"
+        if "종합" in text:
+            return "종합"
+        return "기타"
 
     def _admission_band(self, student_grade: float | None, cutoff: float) -> str:
         if student_grade is None:
@@ -487,6 +517,16 @@ class GraphRAGEngine:
         value = float(match.group(1))
         return value if 1 <= value <= 9 else None
 
+    def _pick_admission_focus(self, text: Any) -> str:
+        repaired = repair_text(text)
+        if repaired in {"교과", "종합", "기타"}:
+            return repaired
+        if "교과" in repaired:
+            return "교과"
+        if "종합" in repaired or "학종" in repaired:
+            return "종합"
+        return "전체"
+
     def _pick_taken(self, text: Any) -> list[str]:
         if isinstance(text, list):
             return [repair_text(item) for item in text if repair_text(item)]
@@ -578,7 +618,7 @@ class GraphRAGEngine:
         admission = result["admission"]
 
         lines = [
-            f"{result['school']} {result['grade']}학년 기준으로 {result['major']} 진로를 보면, 학교 편제표 안에서 바로 연결되는 추천 과목은 {self._join_subjects([x['subject'] for x in available[:5]])}입니다.",
+            f"과목 로드맵\n{result['school']} {result['grade']}학년 기준으로 {result['major']} 진로를 보면, 학교 편제표 안에서 바로 연결되는 추천 과목은 {self._join_subjects([x['subject'] for x in available[:5]])}입니다.",
         ]
         if completed:
             lines.append(f"이미 입력한 과목 중에서는 {self._join_subjects([x['subject'] for x in completed[:4]])}이 목표 학과 추천 과목과 겹칩니다.")
@@ -591,19 +631,42 @@ class GraphRAGEngine:
             if result.get("school_grade"):
                 lines.append(self._admission_answer(admission))
             else:
-                lines.append("내신 등급을 함께 입력하면 대학어디가 샘플 입시결과 기준으로 안정/적정/상향 후보까지 나눠볼 수 있습니다.")
-        lines.append(result["caution"])
-        return " ".join(lines)
+                lines.append("내신컷 해석\n내신 등급을 함께 입력하면 대학어디가 샘플 입시결과 기준으로 교과/종합 후보를 나눠볼 수 있습니다.")
+        lines.append(f"주의\n{result['caution']}")
+        return "\n\n".join(lines)
 
     def _admission_answer(self, admission: dict[str, Any]) -> str:
-        chunks = []
+        focus = admission.get("focus", "전체")
+        intro = "내신컷 해석"
+        if focus == "전체":
+            intro += "\n교과와 종합은 평가 방식이 달라서 따로 봐야 합니다. 우선 교과/종합 중 무엇을 중심으로 볼지 정하면 더 정확히 좁힐 수 있어요."
+        else:
+            intro += f"\n현재는 {focus} 중심으로 후보를 정리했습니다."
+
+        sections = [intro]
+        sections.append(self._admission_type_summary("교과", admission.get("by_type", {}).get("교과", {})))
+        sections.append(self._admission_type_summary("종합", admission.get("by_type", {}).get("종합", {})))
+
+        similar = admission.get("similar", [])
+        if similar:
+            sections.append(f"대체 유사 학과\n{self._join_university_major(similar[:4])}도 비교할 만합니다.")
+        return "\n\n".join(section for section in sections if section.strip())
+
+    def _admission_type_summary(self, category: str, bucket: dict[str, Any]) -> str:
+        if not bucket or not bucket.get("count"):
+            return f"{category} 기준\n현재 수집된 샘플 안에서는 직접 비교할 후보가 부족합니다."
+
+        if category == "교과":
+            guide = "교과는 내신 환산등급과 대학별 반영 교과/환산식을 먼저 봅니다. 아래 후보는 70% cut을 기준으로 단순 비교한 범위입니다."
+        else:
+            guide = "종합은 내신컷만으로 판단하기 어렵고, 편제표 안에서 목표 학과의 핵심 과목을 이어 듣는지와 세특·탐구 흐름을 함께 봐야 합니다."
+
+        lines = [f"{category} 기준\n{guide}"]
         for label, key in [("안정", "likely"), ("적정", "target"), ("상향", "reach")]:
-            items = admission.get(key, [])
+            items = bucket.get(key, [])
             if items:
-                chunks.append(f"{label} 후보는 {self._join_university_major(items[:3])}입니다.")
-        if admission.get("similar"):
-            chunks.append(f"대체 유사 학과로는 {self._join_university_major(admission['similar'][:3])}도 비교할 만합니다.")
-        return " ".join(chunks)
+                lines.append(f"{label}: {self._join_university_major(items[:3])}")
+        return "\n".join(lines)
 
     def _join_university_major(self, items: list[dict[str, Any]]) -> str:
         return ", ".join(f"{item['university']} {item['major']}({item['grade_70'] or item['grade_50']})" for item in items)
