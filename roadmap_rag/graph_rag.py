@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
@@ -40,15 +41,35 @@ class MajorSubject:
     evidence: str
 
 
+@dataclass(frozen=True)
+class AdmissionResult:
+    result_year: str
+    university: str
+    major: str
+    area: str
+    admission_period: str
+    admission_type: str
+    track_name: str
+    recruit_count: str
+    additional_pass_count: str
+    competition_rate: str
+    grade_50: float | None
+    grade_70: float | None
+    score_50: str
+    score_70: str
+    source_url: str
+
+
 @dataclass
 class RoadmapGraph:
     schools: dict[str, list[SubjectOffering]] = field(default_factory=dict)
     majors: dict[str, list[MajorSubject]] = field(default_factory=dict)
     subject_aliases: dict[str, str] = field(default_factory=dict)
+    admissions: list[AdmissionResult] = field(default_factory=list)
 
 
 def repair_text(value: Any) -> str:
-    """Repair common UTF-8 text that was accidentally decoded as latin-1/cp1252."""
+    """Repair UTF-8 text that was accidentally decoded as latin-1/cp1252."""
     if value is None:
         return ""
     text = str(value).strip()
@@ -68,17 +89,28 @@ def repair_text(value: Any) -> str:
 def norm(value: Any) -> str:
     text = repair_text(value).lower()
     text = text.replace("Ⅰ", "1").replace("Ⅱ", "2")
-    text = re.sub(r"[\s·ㆍ․,/_()\-]+", "", text)
+    text = re.sub(r"[\s·ㆍ․,/_()\-\[\]]+", "", text)
+    text = text.replace("대학교", "대")
     return text
 
 
 def to_float(value: Any, default: float = 0.0) -> float:
     try:
-        if value in (None, ""):
+        if value in (None, "", "-"):
             return default
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def optional_float(value: Any) -> float | None:
+    try:
+        text = str(value).strip()
+        if text in {"", "-", "0"}:
+            return None
+        return float(text)
+    except (TypeError, ValueError):
+        return None
 
 
 def split_subjects(text: str) -> list[str]:
@@ -87,8 +119,9 @@ def split_subjects(text: str) -> list[str]:
 
 
 class GraphRAGEngine:
-    def __init__(self, workbook_path: Path):
+    def __init__(self, workbook_path: Path, admission_path: Path | None = None):
         self.workbook_path = workbook_path
+        self.admission_path = admission_path or workbook_path.parent / "roadmap_project" / "data" / "admission_results_core.csv"
         self.graph = self._load_graph(workbook_path)
 
     @classmethod
@@ -99,8 +132,10 @@ class GraphRAGEngine:
     def meta(self) -> dict[str, Any]:
         return {
             "workbook": self.workbook_path.name,
+            "admission_file": self.admission_path.name if self.admission_path.exists() else "",
             "school_count": len(self.graph.schools),
             "major_count": len(self.graph.majors),
+            "admission_result_count": len(self.graph.admissions),
             "schools": sorted(self.graph.schools)[:200],
             "majors": sorted(self.graph.majors)[:300],
         }
@@ -111,18 +146,31 @@ class GraphRAGEngine:
         major = self._pick_major(profile.get("major") or message)
         grade = self._pick_grade(profile.get("grade") or message)
         taken = self._pick_taken(profile.get("taken") or message)
+        school_grade = self._pick_school_grade(profile.get("school_grade") or profile.get("gpa") or message)
 
         if not school:
-            return self._need_more("학교명을 알려주면, 해당 학교 편제표 안에서 실제 선택 가능한 과목만 골라볼 수 있어요.")
+            return self._need_more("학교명을 알려주면 해당 학교 편제표 안에서 실제 선택 가능한 과목만 골라볼 수 있어요.")
         if not major:
-            return self._need_more("목표 학과나 계열을 알려주면, 대학트랙 기준 핵심/권장 과목을 찾아볼게요.")
+            return self._need_more("목표 학과나 계열을 알려주면 대학트랙 기준 핵심/권장 과목을 찾아볼게요.")
 
-        recommendation = self.recommend(school=school, major=major, grade=grade, taken_subjects=taken)
-        answer = self._compose_answer(recommendation)
-        recommendation["answer"] = answer
+        recommendation = self.recommend(
+            school=school,
+            major=major,
+            grade=grade,
+            taken_subjects=taken,
+            school_grade=school_grade,
+        )
+        recommendation["answer"] = self._compose_answer(recommendation)
         return recommendation
 
-    def recommend(self, school: str, major: str, grade: int = 1, taken_subjects: list[str] | None = None) -> dict[str, Any]:
+    def recommend(
+        self,
+        school: str,
+        major: str,
+        grade: int = 1,
+        taken_subjects: list[str] | None = None,
+        school_grade: float | None = None,
+    ) -> dict[str, Any]:
         taken_subjects = taken_subjects or []
         offerings = self.graph.schools.get(school, [])
         major_subjects = self.graph.majors.get(major, [])
@@ -153,6 +201,7 @@ class GraphRAGEngine:
             else:
                 unavailable.append(row)
 
+        admission = self._recommend_admissions(major=major, school_grade=school_grade)
         plan = self._build_plan(available, grade)
         similar_majors = self._similar_majors(major)
 
@@ -161,18 +210,24 @@ class GraphRAGEngine:
             "school": school,
             "major": major,
             "grade": grade,
+            "school_grade": school_grade,
             "taken_subjects": taken_subjects,
             "completed": completed[:8],
             "available": available[:10],
             "unavailable": unavailable[:8],
             "plan": plan,
             "similar_majors": similar_majors,
-            "graph": self._graph_payload(school, major, available[:6], unavailable[:4]),
+            "admission": admission,
+            "graph": self._graph_payload(school, major, available[:6], unavailable[:4], admission),
             "sources": [
                 "울산고교_과목로드맵_수정.xlsx / 학교편제표",
                 "울산고교_과목로드맵_수정.xlsx / 로드맵DB_v2_대학트랙집계",
+                "data/admission_results_core.csv / 대학어디가 입시결과 샘플",
             ],
-            "caution": "내신컷 데이터는 아직 연결하지 않았으므로, 현재 답변은 과목 적합도와 학교 편제표 기준 상담입니다.",
+            "caution": (
+                "입시결과는 대학어디가 공개 자료 샘플 기준이며 대학별 환산 방식이 다릅니다. "
+                "50%/70% cut은 합격 보장이 아니라 참고 지표입니다."
+            ),
         }
 
     def _load_graph(self, workbook_path: Path) -> RoadmapGraph:
@@ -184,6 +239,7 @@ class GraphRAGEngine:
         self._load_aliases(workbook, graph)
         self._load_school_offerings(workbook, graph)
         self._load_major_subjects(workbook, graph)
+        self._load_admissions(graph)
         return graph
 
     def _load_aliases(self, workbook: Any, graph: RoadmapGraph) -> None:
@@ -243,6 +299,132 @@ class GraphRAGEngine:
             )
             graph.majors.setdefault(major, []).append(item)
 
+    def _load_admissions(self, graph: RoadmapGraph) -> None:
+        if not self.admission_path.exists():
+            return
+        with self.admission_path.open(encoding="utf-8-sig", newline="") as file:
+            for row in csv.DictReader(file):
+                grade_70 = optional_float(row.get("grade_70"))
+                grade_50 = optional_float(row.get("grade_50"))
+                if grade_70 is None and grade_50 is None:
+                    continue
+                graph.admissions.append(
+                    AdmissionResult(
+                        result_year=row.get("result_year", ""),
+                        university=row.get("university", ""),
+                        major=row.get("major", ""),
+                        area=row.get("area", ""),
+                        admission_period=row.get("admission_period", ""),
+                        admission_type=row.get("admission_type", ""),
+                        track_name=row.get("track_name", ""),
+                        recruit_count=row.get("recruit_count", ""),
+                        additional_pass_count=row.get("additional_pass_count", ""),
+                        competition_rate=row.get("competition_rate", ""),
+                        grade_50=grade_50,
+                        grade_70=grade_70,
+                        score_50=row.get("score_50", ""),
+                        score_70=row.get("score_70", ""),
+                        source_url=row.get("source_url", ""),
+                    )
+                )
+
+    def _recommend_admissions(self, major: str, school_grade: float | None) -> dict[str, Any]:
+        if not self.graph.admissions:
+            return {"available": False, "message": "입시결과 CSV가 없어 대학 추천은 비활성화되어 있습니다.", "exact": [], "similar": [], "reach": [], "target": [], "likely": []}
+        candidates = []
+        for result in self.graph.admissions:
+            similarity = self._major_similarity(major, result.major)
+            if similarity <= 0:
+                continue
+            cutoff = result.grade_70 or result.grade_50
+            if cutoff is None:
+                continue
+            band = self._admission_band(school_grade, cutoff)
+            direct = self._is_direct_major_name(major, result.major)
+            candidates.append(
+                {
+                    "university": result.university,
+                    "major": result.major,
+                    "area": result.area,
+                    "admission_period": result.admission_period,
+                    "admission_type": result.admission_type,
+                    "track_name": result.track_name,
+                    "competition_rate": result.competition_rate,
+                    "grade_50": result.grade_50,
+                    "grade_70": result.grade_70,
+                    "cutoff": cutoff,
+                    "source_url": result.source_url,
+                    "similarity": similarity,
+                    "match_type": "동일/직접 관련" if direct else "대체 유사 학과",
+                    "direct": direct,
+                    "band": band,
+                }
+            )
+
+        def sort_key(item: dict[str, Any]) -> tuple[int, float, float]:
+            band_order = {"안정": 0, "적정": 1, "상향": 2, "도전": 3, "참고": 4}
+            return (band_order.get(item["band"], 9), -item["similarity"], item["cutoff"])
+
+        ranked = sorted(candidates, key=sort_key)
+        exact = [item for item in ranked if item["direct"]]
+        similar = [item for item in ranked if not item["direct"]]
+        return {
+            "available": True,
+            "student_grade": school_grade,
+            "exact": exact[:8],
+            "similar": similar[:8],
+            "likely": [item for item in ranked if item["band"] == "안정"][:5],
+            "target": [item for item in ranked if item["band"] == "적정"][:5],
+            "reach": [item for item in ranked if item["band"] == "상향"][:5],
+            "count": len(candidates),
+        }
+
+    def _admission_band(self, student_grade: float | None, cutoff: float) -> str:
+        if student_grade is None:
+            return "참고"
+        # Lower Korean school grade is stronger. Compare against 70% cut.
+        diff = student_grade - cutoff
+        if diff <= -0.4:
+            return "안정"
+        if diff <= 0.25:
+            return "적정"
+        if diff <= 0.8:
+            return "상향"
+        return "도전"
+
+    def _major_similarity(self, target: str, candidate: str) -> int:
+        t = norm(target)
+        c = norm(candidate)
+        if not t or not c:
+            return 0
+        if t in c or c in t:
+            return 100
+        aliases = {
+            "컴퓨터공학": ["컴퓨터", "소프트웨어", "ai", "인공지능", "정보컴퓨터"],
+            "생명공학": ["생명", "바이오", "의생명", "식품생명", "분자생명"],
+            "기계공학": ["기계", "로봇", "자동차", "메카트로닉스"],
+        }
+        for root, words in aliases.items():
+            if norm(root) in t and any(norm(word) in c for word in words):
+                return 70
+        t_tokens = set(re.findall(r"[가-힣A-Za-z0-9]+", target))
+        c_tokens = set(re.findall(r"[가-힣A-Za-z0-9]+", candidate))
+        overlap = t_tokens & c_tokens
+        return min(60, 20 * len(overlap)) if overlap else 0
+
+    def _is_direct_major_name(self, target: str, candidate: str) -> bool:
+        def base(text: str) -> str:
+            value = norm(text)
+            for suffix in ("전공", "계열", "과", "부"):
+                value = re.sub(f"{suffix}$", "", value)
+            return value
+
+        target_base = base(target)
+        candidate_base = base(candidate)
+        if not target_base or not candidate_base:
+            return False
+        return candidate_base == target_base
+
     def _pick_school(self, text: Any) -> str:
         text_norm = norm(text)
         if not text_norm:
@@ -257,6 +439,7 @@ class GraphRAGEngine:
         replacements = {
             "컴공": "컴퓨터공학",
             "컴퓨터": "컴퓨터공학",
+            "소프트웨어": "컴퓨터공학",
             "기계": "기계공학",
             "생명": "생명공학",
             "바이오": "생명공학",
@@ -290,6 +473,19 @@ class GraphRAGEngine:
         if not match:
             return 1
         return int(next(group for group in match.groups() if group))
+
+    def _pick_school_grade(self, text: Any) -> float | None:
+        if isinstance(text, (int, float)):
+            value = float(text)
+            return value if 1 <= value <= 9 else None
+        repaired = repair_text(text)
+        match = re.search(r"(?:내신|등급|평균)\s*([1-9](?:\.\d+)?)", repaired)
+        if not match:
+            match = re.search(r"\b([1-9](?:\.\d+)?)\s*등급", repaired)
+        if not match:
+            return None
+        value = float(match.group(1))
+        return value if 1 <= value <= 9 else None
 
     def _pick_taken(self, text: Any) -> list[str]:
         if isinstance(text, list):
@@ -337,18 +533,23 @@ class GraphRAGEngine:
         return (int(match.group(1)) - 1) * 2 + int(match.group(2))
 
     def _similar_majors(self, major: str) -> list[str]:
-        tokens = [token for token in re.split(r"공학|과학|학과|학부|전공", major) if token]
-        result = []
+        candidates = []
         for candidate in sorted(self.graph.majors):
             if candidate == major:
                 continue
-            if any(token and token in candidate for token in tokens) or any(token and token in major for token in re.split(r"공학|과학|학과|학부|전공", candidate)):
-                result.append(candidate)
-            if len(result) >= 5:
-                break
-        return result
+            score = self._major_similarity(major, candidate)
+            if score > 0:
+                candidates.append((score, candidate))
+        return [candidate for _, candidate in sorted(candidates, reverse=True)[:5]]
 
-    def _graph_payload(self, school: str, major: str, available: list[dict[str, Any]], unavailable: list[dict[str, Any]]) -> dict[str, Any]:
+    def _graph_payload(
+        self,
+        school: str,
+        major: str,
+        available: list[dict[str, Any]],
+        unavailable: list[dict[str, Any]],
+        admission: dict[str, Any],
+    ) -> dict[str, Any]:
         nodes = [
             {"id": f"school:{school}", "label": school, "type": "school"},
             {"id": f"major:{major}", "label": major, "type": "major"},
@@ -363,6 +564,10 @@ class GraphRAGEngine:
             sid = f"subject:{item['subject']}"
             nodes.append({"id": sid, "label": item["subject"], "type": "missing"})
             edges.append({"source": sid, "target": f"major:{major}", "label": item["recommend_type"]})
+        for item in (admission.get("target") or admission.get("exact") or [])[:3]:
+            uid = f"admission:{item['university']}:{item['major']}"
+            nodes.append({"id": uid, "label": item["university"], "type": "admission"})
+            edges.append({"source": f"major:{major}", "target": uid, "label": item["band"]})
         return {"nodes": nodes, "edges": edges}
 
     def _compose_answer(self, result: dict[str, Any]) -> str:
@@ -370,6 +575,7 @@ class GraphRAGEngine:
         unavailable = result["unavailable"]
         completed = result["completed"]
         plan = result["plan"]
+        admission = result["admission"]
 
         lines = [
             f"{result['school']} {result['grade']}학년 기준으로 {result['major']} 진로를 보면, 학교 편제표 안에서 바로 연결되는 추천 과목은 {self._join_subjects([x['subject'] for x in available[:5]])}입니다.",
@@ -381,8 +587,26 @@ class GraphRAGEngine:
         if plan:
             first = plan[0]
             lines.append(f"우선순위는 {first['semester']}에 {self._join_subjects(first['subjects'])}부터 잡는 방식이 좋습니다.")
+        if admission.get("available"):
+            if result.get("school_grade"):
+                lines.append(self._admission_answer(admission))
+            else:
+                lines.append("내신 등급을 함께 입력하면 대학어디가 샘플 입시결과 기준으로 안정/적정/상향 후보까지 나눠볼 수 있습니다.")
         lines.append(result["caution"])
         return " ".join(lines)
+
+    def _admission_answer(self, admission: dict[str, Any]) -> str:
+        chunks = []
+        for label, key in [("안정", "likely"), ("적정", "target"), ("상향", "reach")]:
+            items = admission.get(key, [])
+            if items:
+                chunks.append(f"{label} 후보는 {self._join_university_major(items[:3])}입니다.")
+        if admission.get("similar"):
+            chunks.append(f"대체 유사 학과로는 {self._join_university_major(admission['similar'][:3])}도 비교할 만합니다.")
+        return " ".join(chunks)
+
+    def _join_university_major(self, items: list[dict[str, Any]]) -> str:
+        return ", ".join(f"{item['university']} {item['major']}({item['grade_70'] or item['grade_50']})" for item in items)
 
     def _join_subjects(self, subjects: list[str]) -> str:
         return ", ".join(subjects) if subjects else "확인된 과목 없음"
@@ -396,6 +620,7 @@ class GraphRAGEngine:
             "completed": [],
             "plan": [],
             "similar_majors": [],
+            "admission": {"available": False, "exact": [], "similar": [], "reach": [], "target": [], "likely": []},
             "graph": {"nodes": [], "edges": []},
             "sources": [],
             "caution": "",
