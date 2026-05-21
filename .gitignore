@@ -7,6 +7,7 @@ __pycache__/
 raw/
 exports/
 *.log
+data/admission_results_*.csv
 
 # OS/editor
 .DS_Store
