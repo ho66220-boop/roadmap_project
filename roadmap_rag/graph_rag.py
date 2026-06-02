@@ -66,6 +66,7 @@ class RoadmapGraph:
     majors: dict[str, list[MajorSubject]] = field(default_factory=dict)
     subject_aliases: dict[str, str] = field(default_factory=dict)
     admissions: list[AdmissionResult] = field(default_factory=list)
+    careernet_subject_count: int = 0
 
 
 def repair_text(value: Any) -> str:
@@ -119,9 +120,10 @@ def split_subjects(text: str) -> list[str]:
 
 
 class GraphRAGEngine:
-    def __init__(self, workbook_path: Path, admission_path: Path | None = None):
+    def __init__(self, workbook_path: Path, admission_path: Path | None = None, careernet_path: Path | None = None):
         self.workbook_path = workbook_path
         self.admission_path = admission_path or workbook_path.parent / "roadmap_project" / "data" / "admission_results_core.csv"
+        self.careernet_path = careernet_path or workbook_path.parent / "roadmap_project" / "data" / "careernet_major_subjects.csv"
         self.graph = self._load_graph(workbook_path)
 
     @classmethod
@@ -133,9 +135,11 @@ class GraphRAGEngine:
         return {
             "workbook": self.workbook_path.name,
             "admission_file": self.admission_path.name if self.admission_path.exists() else "",
+            "careernet_file": self.careernet_path.name if self.careernet_path.exists() else "",
             "school_count": len(self.graph.schools),
             "major_count": len(self.graph.majors),
             "admission_result_count": len(self.graph.admissions),
+            "careernet_subject_count": self.graph.careernet_subject_count,
             "schools": sorted(self.graph.schools)[:200],
             "majors": sorted(self.graph.majors)[:300],
         }
@@ -226,7 +230,16 @@ class GraphRAGEngine:
             "sources": [
                 "울산고교_과목로드맵_수정.xlsx / 학교편제표",
                 "울산고교_과목로드맵_수정.xlsx / 로드맵DB_v2_대학트랙집계",
-                "data/admission_results_core.csv / 대학어디가 입시결과 샘플",
+                *(
+                    ["data/careernet_major_subjects.csv / 커리어넷 2022 개정 선택과목"]
+                    if self.graph.careernet_subject_count
+                    else []
+                ),
+                *(
+                    ["data/admission_results_core.csv / 대학어디가 입시결과 샘플"]
+                    if self.graph.admissions
+                    else []
+                ),
             ],
             "caution": (
                 "입시결과는 대학어디가 공개 자료 샘플 기준이며 대학별 환산 방식이 다릅니다. "
@@ -243,6 +256,7 @@ class GraphRAGEngine:
         self._load_aliases(workbook, graph)
         self._load_school_offerings(workbook, graph)
         self._load_major_subjects(workbook, graph)
+        self._load_careernet_subjects(graph)
         self._load_admissions(graph)
         return graph
 
@@ -302,6 +316,74 @@ class GraphRAGEngine:
                 evidence=repair_text(row[11]),
             )
             graph.majors.setdefault(major, []).append(item)
+
+    def _load_careernet_subjects(self, graph: RoadmapGraph) -> None:
+        if not self.careernet_path.exists():
+            return
+        category_fields = [
+            ("general_selection_subjects", "권장", "일반 선택", 40.0),
+            ("career_selection_subjects", "핵심", "진로 선택", 20.0),
+            ("convergence_selection_subjects", "권장", "융합 선택", 60.0),
+        ]
+        with self.careernet_path.open(encoding="utf-8-sig", newline="") as file:
+            for row in csv.DictReader(file):
+                career_major = repair_text(row.get("career_major_name"))
+                if not career_major:
+                    continue
+                major = self._match_graph_major(career_major, graph)
+                source_url = repair_text(row.get("source_url"))
+                for field, recommend_type, category, priority in category_fields:
+                    for subject in self._split_careernet_subjects(row.get(field, "")):
+                        graph.majors.setdefault(major, []).append(
+                            MajorSubject(
+                                major=major,
+                                subject_code=f"CAREERNET-{row.get('career_seq', '')}-{field}",
+                                subject=subject,
+                                group="커리어넷",
+                                subject_type=category,
+                                recommend_type=recommend_type,
+                                priority=priority,
+                                university_count=0.0,
+                                evidence=(
+                                    f"커리어넷 {career_major}의 2022 개정 교육과정 {category} 관련 과목"
+                                    + (f" ({source_url})" if source_url else "")
+                                ),
+                            )
+                        )
+                        graph.careernet_subject_count += 1
+
+    def _split_careernet_subjects(self, text: Any) -> list[str]:
+        subjects = []
+        seen = set()
+        for item in re.split(r"\|", repair_text(text)):
+            subject = repair_text(item).strip()
+            if not subject:
+                continue
+            if len(subject) == 1:
+                continue
+            key = norm(subject)
+            if key in seen:
+                continue
+            seen.add(key)
+            subjects.append(subject)
+        return subjects
+
+    def _match_graph_major(self, career_major: str, graph: RoadmapGraph) -> str:
+        career_key = self._major_base_key(career_major)
+        for major in graph.majors:
+            if self._major_base_key(major) == career_key:
+                return major
+        for major in graph.majors:
+            major_key = self._major_base_key(major)
+            if major_key and (major_key in career_key or career_key in major_key):
+                return major
+        return career_major
+
+    def _major_base_key(self, text: str) -> str:
+        value = norm(text)
+        for suffix in ("학과", "전공", "계열", "학부", "과", "부"):
+            value = re.sub(f"{suffix}$", "", value)
+        return value
 
     def _load_admissions(self, graph: RoadmapGraph) -> None:
         if not self.admission_path.exists():
