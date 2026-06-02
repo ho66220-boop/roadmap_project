@@ -3,48 +3,442 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Roadmap Graph RAG Chatbot</title>
+  <title>울산 고교 과목 로드맵 AI 상담</title>
   <style>
     :root {
-      --bg:#f5f7fb; --panel:#fff; --line:#dfe5ef; --text:#172033; --muted:#64748b;
-      --blue:#2563eb; --green:#047857; --amber:#b45309; --red:#dc2626; --ink:#111827;
-      --shadow:0 16px 42px rgba(15,23,42,.08);
+      --bg: #f4f6f9;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --line: #dbe3ef;
+      --text: #172033;
+      --muted: #64748b;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --green: #047857;
+      --green-soft: #ecfdf5;
+      --amber: #b45309;
+      --amber-soft: #fffbeb;
+      --red: #dc2626;
+      --red-soft: #fef2f2;
+      --ink: #111827;
+      --shadow: 0 16px 38px rgba(15, 23, 42, .07);
     }
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:var(--bg)}
-    header{position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line);background:rgba(255,255,255,.94);backdrop-filter:blur(14px)}
-    .header-inner{max-width:1280px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:13px}
-    .logo{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;color:white;background:var(--ink);font-weight:900}
-    h1{margin:0;font-size:18px;line-height:1.25}.subtitle{margin-top:2px;color:var(--muted);font-size:13px}
-    main{max-width:1280px;margin:0 auto;padding:20px 18px 34px;display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px}
-    .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
-    .profile{padding:16px;display:grid;gap:13px;align-content:start}
-    label{display:grid;gap:6px;font-size:13px;font-weight:800}
-    select,input,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 11px;font:inherit;color:var(--text);background:white}
-    textarea{min-height:82px;resize:vertical}
-    button{border:0;border-radius:8px;padding:11px 14px;background:var(--blue);color:white;font:inherit;font-weight:900;cursor:pointer}
-    button.secondary{color:var(--text);background:#eef2f7}
-    .meta{border-top:1px solid var(--line);margin-top:2px;padding-top:12px;color:var(--muted);font-size:12px;line-height:1.55}
-    .workspace{display:grid;gap:18px}.chat{min-height:330px;display:grid;grid-template-rows:minmax(260px,1fr) auto}
-    .messages{padding:16px;display:grid;gap:12px;align-content:start;max-height:420px;overflow:auto}
-    .bubble{max-width:84%;border:1px solid var(--line);border-radius:8px;padding:12px 13px;line-height:1.62;font-size:14px;background:#fff;white-space:pre-wrap}
-    .bubble.user{justify-self:end;color:white;border-color:var(--blue);background:var(--blue)}.bubble.bot{justify-self:start;background:#f8fafc}
-    .composer{border-top:1px solid var(--line);padding:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.composer textarea{min-height:46px;max-height:120px}
-    .result{display:grid;grid-template-columns:1fr 1fr;gap:18px}.box{padding:16px}h2{margin:0 0 12px;font-size:16px}
-    .list{display:grid;gap:8px}.item{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff}
-    .item strong{display:block;margin-bottom:4px;font-size:14px}.item span{display:block;color:var(--muted);font-size:12px;line-height:1.5}
-    .tag{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;margin-right:5px;color:var(--green);background:#ecfdf5;border:1px solid #a7f3d0;font-size:11px;font-weight:900}
-    .tag.missing{color:var(--red);background:#fef2f2;border-color:#fecaca}.tag.core{color:var(--blue);background:#eff6ff;border-color:#bfdbfe}.tag.reach{color:var(--amber);background:#fffbeb;border-color:#fcd34d}
-    .wide{grid-column:1/-1}
-    .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-    .metric{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff}
-    .metric b{display:block;font-size:22px;line-height:1.1}.metric span{display:block;margin-top:5px;color:var(--muted);font-size:12px}
-    .evidence-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-    .step{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff}
-    .step small{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;background:#eff6ff;color:var(--blue);font-weight:900;font-size:11px}
-    .step strong{display:block;margin-bottom:6px;font-size:14px}.step p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
-    .empty{color:var(--muted);font-size:13px;line-height:1.6}
-    @media (max-width:900px){main{grid-template-columns:1fr}.result,.metric-grid,.evidence-flow{grid-template-columns:1fr}.bubble{max-width:100%}.composer{grid-template-columns:1fr}}
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .94);
+      backdrop-filter: blur(16px);
+    }
+
+    .header-inner {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--ink);
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    main {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .profile {
+      padding: 16px;
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .group {
+      display: grid;
+      gap: 10px;
+    }
+
+    .group-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+      letter-spacing: .02em;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    select, input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 11px;
+      font: inherit;
+      color: var(--text);
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      background: var(--blue);
+      color: #fff;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      color: var(--text);
+      background: #eef2f7;
+    }
+
+    .meta {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .workspace {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero-card {
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .hero-card h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+
+    .hero-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .status-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .chat {
+      min-height: 260px;
+      display: grid;
+      grid-template-rows: minmax(180px, 1fr) auto;
+    }
+
+    .messages {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      max-height: 310px;
+      overflow: auto;
+    }
+
+    .bubble {
+      max-width: 86%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 13px;
+      line-height: 1.62;
+      font-size: 14px;
+      background: #fff;
+      white-space: pre-wrap;
+    }
+
+    .bubble.user {
+      justify-self: end;
+      color: #fff;
+      border-color: var(--blue);
+      background: var(--blue);
+    }
+
+    .bubble.bot {
+      justify-self: start;
+      background: var(--panel-soft);
+    }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+    }
+
+    .composer textarea {
+      min-height: 46px;
+      max-height: 120px;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+
+    .box {
+      padding: 16px;
+    }
+
+    h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      min-height: 86px;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .item span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      margin-right: 5px;
+      color: var(--green);
+      background: var(--green-soft);
+      border: 1px solid #a7f3d0;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .tag.core {
+      color: var(--blue);
+      background: var(--blue-soft);
+      border-color: #bfdbfe;
+    }
+
+    .tag.reach {
+      color: var(--amber);
+      background: var(--amber-soft);
+      border-color: #fcd34d;
+    }
+
+    .tag.missing {
+      color: var(--red);
+      background: var(--red-soft);
+      border-color: #fecaca;
+    }
+
+    .admission-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .admission-column {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .admission-column h4 {
+      margin: 0 0 4px;
+      font-size: 14px;
+    }
+
+    .admission-column p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .evidence-flow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .step small {
+      display: inline-flex;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 900;
+      font-size: 11px;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .notice {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--muted);
+      background: var(--panel-soft);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1080px) {
+      main { grid-template-columns: 1fr; }
+      .span-8, .span-6, .span-4 { grid-column: span 12; }
+      .summary-grid, .admission-columns, .evidence-flow { grid-template-columns: 1fr; }
+      .bubble { max-width: 100%; }
+    }
+
+    @media (max-width: 720px) {
+      main { padding: 14px; }
+      .hero-card { grid-template-columns: 1fr; }
+      .composer { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -52,26 +446,46 @@
     <div class="header-inner">
       <div class="logo">R</div>
       <div>
-        <h1>울산 고교 과목 로드맵 Graph RAG 챗봇</h1>
-        <div class="subtitle">학교 편제표, 학과별 추천 과목, 대학어디가 입시결과 샘플을 연결합니다.</div>
+        <h1>울산 고교 과목 로드맵 AI 상담</h1>
+        <div class="subtitle">학교 편제표, 학과별 추천 과목, 대학어디가 입시결과 샘플을 연결한 상담 리포트</div>
       </div>
     </div>
   </header>
 
   <main>
     <aside class="panel profile">
-      <label>학교<input id="school" list="school-list" value="울산고" /><datalist id="school-list"></datalist></label>
-      <label>학년<select id="grade"><option value="1">고1</option><option value="2">고2</option><option value="3">고3</option></select></label>
-      <label>내신 평균 등급<input id="school_grade" type="number" min="1" max="9" step="0.01" value="2.7" /></label>
-      <label>전형 구분<select id="admission_focus"><option value="전체">교과/종합 같이 보기</option><option value="교과">학생부 교과</option><option value="종합">학생부 종합</option></select></label>
-      <label>목표 학과<input id="major" list="major-list" value="컴퓨터공학" /><datalist id="major-list"></datalist></label>
-      <label>이수 과목<textarea id="taken">공통수학1, 공통수학2, 통합과학1</textarea></label>
-      <button id="quick">조건으로 상담하기</button>
-      <button id="sample" class="secondary">생명공학 예시</button>
+      <div class="group">
+        <div class="group-title">학생 정보</div>
+        <label>학교<input id="school" list="school-list" value="울산고" /><datalist id="school-list"></datalist></label>
+        <label>학년<select id="grade"><option value="1">고1</option><option value="2">고2</option><option value="3">고3</option></select></label>
+        <label>내신 평균 등급<input id="school_grade" type="number" min="1" max="9" step="0.01" value="2.7" /></label>
+      </div>
+
+      <div class="group">
+        <div class="group-title">진로 목표</div>
+        <label>목표 학과<input id="major" list="major-list" value="컴퓨터공학" /><datalist id="major-list"></datalist></label>
+        <label>전형 구분<select id="admission_focus"><option value="전체">교과/종합 같이 보기</option><option value="교과">학생부 교과</option><option value="종합">학생부 종합</option></select></label>
+      </div>
+
+      <div class="group">
+        <div class="group-title">수강 이력</div>
+        <label>이수 과목<textarea id="taken">공통수학1, 공통수학2, 통합과학1</textarea></label>
+      </div>
+
+      <button id="quick">상담 리포트 생성</button>
+      <button id="sample" class="secondary">생명공학 예시 불러오기</button>
       <div class="meta" id="meta">데이터 로딩 중</div>
     </aside>
 
     <section class="workspace">
+      <section class="panel hero-card">
+        <div>
+          <h2>과목 선택과 대학 후보를 한 번에 점검합니다</h2>
+          <p>입력 조건을 바탕으로 학교 편제표에서 들을 수 있는 과목, 학과별 핵심 과목, 교과/종합 입시결과 후보를 분리해 상담 리포트로 정리합니다.</p>
+        </div>
+        <div class="status-pill" id="status">대기 중</div>
+      </section>
+
       <section class="panel chat">
         <div class="messages" id="messages"></div>
         <div class="composer">
@@ -80,15 +494,50 @@
         </div>
       </section>
 
-      <section class="result">
-        <article class="panel box"><h2>추천 과목</h2><div class="list" id="available"><div class="empty">아직 상담 결과가 없습니다.</div></div></article>
-        <article class="panel box"><h2>확인 필요 과목</h2><div class="list" id="missing"><div class="empty">아직 상담 결과가 없습니다.</div></div></article>
-        <article class="panel box"><h2>학기별 로드맵</h2><div class="list" id="plan"><div class="empty">아직 상담 결과가 없습니다.</div></div></article>
-        <article class="panel box"><h2>유사 학과</h2><div class="list" id="similar"><div class="empty">아직 상담 결과가 없습니다.</div></div></article>
-        <article class="panel box"><h2>대학 추천</h2><div class="list" id="admission"><div class="empty">내신 입력 후 상담하면 표시됩니다.</div></div></article>
-        <article class="panel box"><h2>대체 유사 학과/대학</h2><div class="list" id="alternatives"><div class="empty">입시결과 샘플과 연결되면 표시됩니다.</div></div></article>
-        <article class="panel box wide"><h2>상담 리포트</h2><div id="report"><div class="empty">상담 결과가 생성되면 준비도 요약이 표시됩니다.</div></div></article>
-        <article class="panel box wide"><h2>추천 근거</h2><div id="evidence"><div class="empty">학교 편제표, 학과 과목 근거, 입시결과 연결 관계가 표시됩니다.</div></div></article>
+      <section class="dashboard">
+        <article class="panel box span-12">
+          <h3>상담 요약</h3>
+          <div id="report"><div class="empty">상담 결과가 생성되면 핵심 지표가 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-8">
+          <h3>과목 로드맵</h3>
+          <div class="list" id="plan"><div class="empty">상담 결과가 생성되면 학기별 수강 전략이 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-4">
+          <h3>핵심 과목 점검</h3>
+          <div class="list" id="available"><div class="empty">추천 과목이 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-12">
+          <h3>대학 후보</h3>
+          <div id="admission"><div class="empty">내신 입력 후 상담하면 교과/종합 후보가 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-6">
+          <h3>대체 유사 학과/대학</h3>
+          <div class="list" id="alternatives"><div class="empty">입시결과 샘플과 연결되면 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-6">
+          <h3>확인 필요 과목</h3>
+          <div class="list" id="missing"><div class="empty">학교 편제표에서 바로 확인되지 않는 과목이 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-6">
+          <h3>유사 학과</h3>
+          <div class="list" id="similar"><div class="empty">목표 학과와 가까운 표준 학과 후보가 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-6">
+          <h3>추천 근거</h3>
+          <div id="evidence"><div class="empty">학교 편제표, 학과 과목 근거, 입시결과 연결 관계가 표시됩니다.</div></div>
+        </article>
+
+        <article class="panel box span-12">
+          <div class="notice">입시결과는 대학어디가 공개 자료 샘플 기준입니다. 대학별 환산 방식, 전형 변경, 모집단위 통합 여부가 다를 수 있으므로 실제 지원 전 대학 입학처와 최신 모집요강 확인이 필요합니다.</div>
+        </article>
       </section>
     </section>
   </main>
@@ -120,15 +569,18 @@
         const res = await fetch("/api/meta");
         const meta = await res.json();
         $("meta").textContent = `학교 ${meta.school_count}개, 학과 ${meta.major_count}개, 입시결과 ${meta.admission_result_count}개`;
+        $("status").textContent = `데이터 ${meta.admission_result_count}개 연결`;
         $("school-list").innerHTML = meta.schools.map(x => `<option value="${escapeHtml(x)}"></option>`).join("");
         $("major-list").innerHTML = meta.majors.map(x => `<option value="${escapeHtml(x)}"></option>`).join("");
       } catch {
         $("meta").textContent = "서버가 실행 중인지 확인하세요. python server.py";
+        $("status").textContent = "서버 확인 필요";
       }
     }
 
     async function ask(message) {
       if (!message) return;
+      $("status").textContent = "상담 생성 중";
       addMessage("user", message);
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -136,17 +588,34 @@
         body: JSON.stringify({ message, profile: profile() })
       });
       const data = await res.json();
-      addMessage("bot", data.answer || "답변을 생성하지 못했습니다.");
+      addMessage("bot", buildBotSummary(data));
       renderResult(data);
+      $("status").textContent = "상담 리포트 생성 완료";
+    }
+
+    function buildBotSummary(data) {
+      if (data.mode === "need_more") return data.answer || "조건을 조금 더 알려주세요.";
+      const subjects = (data.available || []).slice(0, 4).map(x => x.subject).join(", ") || "확인된 과목 없음";
+      const admission = data.admission || {};
+      const 교과 = admission.by_type && admission.by_type["교과"];
+      const 종합 = admission.by_type && admission.by_type["종합"];
+      const 교과Count = 교과 ? 교과.count || 0 : 0;
+      const 종합Count = 종합 ? 종합.count || 0 : 0;
+      return [
+        `${data.major} 상담 리포트를 만들었습니다.`,
+        `우선 과목은 ${subjects} 순서로 확인하세요.`,
+        `입시결과 샘플 기준 비교 후보는 교과 ${교과Count}개, 종합 ${종합Count}개입니다.`
+      ].join("\n");
     }
 
     function renderResult(data) {
-      renderSubjects("available", data.available || [], false);
-      renderSubjects("missing", data.unavailable || [], true);
-      renderPlan(data.plan || []);
-      renderSimilar(data.similar_majors || []);
-      renderAdmission(data.admission || {});
       renderReport(data);
+      renderPlan(data.plan || []);
+      renderSubjects("available", data.available || [], false);
+      renderAdmission(data.admission || {});
+      renderAlternatives(data.admission || {});
+      renderSubjects("missing", data.unavailable || [], true);
+      renderSimilar(data.similar_majors || []);
       renderEvidence(data);
     }
 
@@ -155,7 +624,7 @@
         $(id).innerHTML = `<div class="empty">${missing ? "학교 편제표 기준 확인 필요 과목이 없습니다." : "추천 과목을 찾지 못했습니다."}</div>`;
         return;
       }
-      $(id).innerHTML = items.map(item => `
+      $(id).innerHTML = items.slice(0, id === "available" ? 5 : 8).map(item => `
         <div class="item">
           <strong><span class="tag ${missing ? "missing" : "core"}">${escapeHtml(item.recommend_type)}</span>${escapeHtml(item.subject)}</strong>
           <span>${escapeHtml((item.semesters || []).join(", ") || "편제표 내 학기 정보 없음")}</span>
@@ -185,25 +654,32 @@
     function renderAdmission(admission) {
       if (!admission.available) {
         $("admission").innerHTML = `<div class="empty">${escapeHtml(admission.message || "입시결과 데이터가 없습니다.")}</div>`;
-        $("alternatives").innerHTML = `<div class="empty">대체 유사 학과 후보가 없습니다.</div>`;
         return;
       }
-      const sections = [];
-      for (const category of ["교과", "종합"]) {
+      const columns = ["교과", "종합"].map(category => {
         const bucket = admission.by_type && admission.by_type[category];
-        if (!bucket || !bucket.count) continue;
-        const items = [
+        const guide = category === "교과"
+          ? "내신 환산등급과 대학별 반영 교과를 먼저 비교합니다."
+          : "내신은 참고로 보고 과목 선택과 활동 맥락을 함께 봅니다.";
+        const items = bucket ? [
           ...(bucket.likely || []).map(x => ({...x, bandLabel: "안정"})),
           ...(bucket.target || []).map(x => ({...x, bandLabel: "적정"})),
           ...(bucket.reach || []).map(x => ({...x, bandLabel: "상향"}))
-        ].slice(0, 5);
-        if (items.length) {
-          sections.push(`<div class="item"><strong>${category} 기준</strong><span>${category === "교과" ? "내신 환산등급 중심으로 비교합니다." : "내신은 참고로 보고 과목 선택과 활동 맥락을 함께 봐야 합니다."}</span></div>`);
-          sections.push(...items.map(renderAdmissionItem));
-        }
-      }
-      $("admission").innerHTML = sections.length ? sections.join("") : `<div class="empty">내신 기준 후보가 없습니다.</div>`;
-      $("alternatives").innerHTML = (admission.similar || []).length ? admission.similar.slice(0, 10).map(renderAdmissionItem).join("") : `<div class="empty">대체 유사 학과 후보가 없습니다.</div>`;
+        ].slice(0, 5) : [];
+        return `
+          <div class="admission-column">
+            <h4>${category} 기준</h4>
+            <p>${guide}</p>
+            <div class="list">${items.length ? items.map(renderAdmissionItem).join("") : `<div class="empty">후보가 부족합니다.</div>`}</div>
+          </div>`;
+      }).join("");
+      $("admission").innerHTML = `<div class="admission-columns">${columns}</div>`;
+    }
+
+    function renderAlternatives(admission) {
+      $("alternatives").innerHTML = admission.available && (admission.similar || []).length
+        ? admission.similar.slice(0, 8).map(renderAdmissionItem).join("")
+        : `<div class="empty">대체 유사 학과 후보가 없습니다.</div>`;
     }
 
     function renderAdmissionItem(item) {
@@ -222,16 +698,17 @@
       const byType = admission.by_type || {};
       const coreTotal = (data.available || []).length + (data.completed || []).length + (data.unavailable || []).length;
       const availableCount = (data.available || []).length;
+      const completedCount = (data.completed || []).length;
       const missingCount = (data.unavailable || []).length;
-      const subjectReady = coreTotal ? Math.round(((availableCount + (data.completed || []).length) / coreTotal) * 100) : 0;
+      const subjectReady = coreTotal ? Math.round(((availableCount + completedCount) / coreTotal) * 100) : 0;
       const 교과 = byType["교과"] || {};
       const 종합 = byType["종합"] || {};
       $("report").innerHTML = `
-        <div class="metric-grid">
+        <div class="summary-grid">
           <div class="metric"><b>${subjectReady}%</b><span>과목 준비도</span></div>
-          <div class="metric"><b>${availableCount}</b><span>학교 편제표에서 선택 가능</span></div>
-          <div class="metric"><b>${missingCount}</b><span>확인 필요 과목</span></div>
-          <div class="metric"><b>${(admission.similar || []).length}</b><span>대체 유사 학과 후보</span></div>
+          <div class="metric"><b>${availableCount}</b><span>학교에서 들을 수 있는 추천 과목</span></div>
+          <div class="metric"><b>${missingCount}</b><span>추가 확인 과목</span></div>
+          <div class="metric"><b>${(admission.similar || []).length}</b><span>대체 학과 후보</span></div>
           <div class="metric"><b>${교과.count || 0}</b><span>교과 비교 후보</span></div>
           <div class="metric"><b>${종합.count || 0}</b><span>종합 비교 후보</span></div>
           <div class="metric"><b>${(admission.target || []).length}</b><span>적정권 후보</span></div>
@@ -277,7 +754,7 @@
     });
 
     loadMeta();
-    addMessage("bot", "학교, 학년, 내신, 목표 학과를 넣고 질문해 주세요. 과목 로드맵과 대학어디가 샘플 기반 대학/유사학과 후보를 함께 보여드립니다.");
+    addMessage("bot", "학생 정보와 목표 학과를 입력한 뒤 상담 리포트를 생성해 주세요. 결과는 과목 로드맵, 교과/종합 후보, 추천 근거로 나눠 보여드립니다.");
   </script>
 </body>
 </html>
