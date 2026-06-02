@@ -5,81 +5,114 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>울산 고교 과목 로드맵 AI 상담</title>
   <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
     :root {
-      --bg: #f4f6f9;
+      --bg: #fafbfc;
       --panel: #ffffff;
-      --panel-soft: #f8fafc;
-      --line: #dbe3ef;
-      --text: #172033;
-      --muted: #64748b;
+      --panel-soft: #f4f6fa;
+      --panel-mute: #eceff5;
+      --line: #e4e8ef;
+      --line-strong: #d0d6e0;
+      --text: #1a2332;
+      --muted: #4a5870;
+      --subtle: #8896ab;
       --blue: #2563eb;
       --blue-soft: #eff6ff;
-      --green: #047857;
+      --cyan: #0891b2;
+      --cyan-soft: #ecfeff;
+      --green: #059669;
       --green-soft: #ecfdf5;
       --amber: #b45309;
       --amber-soft: #fffbeb;
       --red: #dc2626;
       --red-soft: #fef2f2;
       --ink: #111827;
-      --shadow: 0 16px 38px rgba(15, 23, 42, .07);
+      --radius: 10px;
+      --radius-lg: 14px;
+      --shadow: 0 1px 2px rgba(16, 24, 40, .05);
+      --shadow-lg: 0 8px 24px rgba(16, 24, 40, .08);
     }
 
     * { box-sizing: border-box; }
 
+    html { font-size: 16px; }
+
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "Pretendard Variable", Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
       background: var(--bg);
+      -webkit-font-smoothing: antialiased;
     }
 
     header {
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 100;
       border-bottom: 1px solid var(--line);
-      background: rgba(255, 255, 255, .94);
-      backdrop-filter: blur(16px);
+      background: rgba(255, 255, 255, .85);
+      backdrop-filter: blur(20px) saturate(1.5);
     }
 
     .header-inner {
       max-width: 1360px;
       margin: 0 auto;
-      padding: 14px 20px;
+      padding: 16px 26px;
       display: flex;
       align-items: center;
-      gap: 13px;
+      gap: 12px;
     }
 
     .logo {
-      width: 38px;
-      height: 38px;
-      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius);
       display: grid;
       place-items: center;
       color: #fff;
-      background: var(--ink);
+      background: linear-gradient(135deg, var(--blue), #06b6d4);
       font-weight: 900;
       flex: 0 0 auto;
+      box-shadow: var(--shadow);
     }
 
     h1 {
       margin: 0;
       font-size: 18px;
       line-height: 1.25;
+      letter-spacing: -.02em;
+      font-weight: 850;
+    }
+
+    h1 b {
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .subtitle {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 13px;
+      margin-top: 3px;
+      color: var(--subtle);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .header-meta {
+      margin-left: auto;
+      color: var(--subtle);
+      text-align: right;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.45;
+      white-space: nowrap;
     }
 
     main {
       max-width: 1360px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 22px 26px 72px;
       display: grid;
       grid-template-columns: 340px minmax(0, 1fr);
       gap: 18px;
@@ -88,27 +121,33 @@
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       box-shadow: var(--shadow);
     }
 
     .profile {
-      padding: 16px;
+      padding: 18px;
       display: grid;
       gap: 16px;
       align-content: start;
+      align-self: start;
     }
 
     .group {
       display: grid;
       gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-soft);
     }
 
     .group-title {
       font-size: 12px;
       font-weight: 900;
-      color: var(--muted);
-      letter-spacing: .02em;
+      color: var(--subtle);
+      letter-spacing: .06em;
+      text-transform: uppercase;
     }
 
     label {
@@ -116,16 +155,26 @@
       gap: 6px;
       font-size: 13px;
       font-weight: 800;
+      color: var(--muted);
     }
 
     select, input, textarea {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 11px;
+      border-radius: var(--radius);
+      padding: 11px 12px;
       font: inherit;
+      font-size: 14px;
       color: var(--text);
       background: #fff;
+      box-shadow: var(--shadow);
+      transition: border .2s, box-shadow .2s;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
     }
 
     textarea {
@@ -135,24 +184,31 @@
 
     button {
       border: 0;
-      border-radius: 8px;
-      padding: 11px 14px;
-      background: var(--blue);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
       color: #fff;
       font: inherit;
       font-weight: 900;
       cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-lg);
     }
 
     button.secondary {
       color: var(--text);
-      background: #eef2f7;
+      background: var(--panel-mute);
     }
 
     .meta {
       border-top: 1px solid var(--line);
       padding-top: 12px;
-      color: var(--muted);
+      color: var(--subtle);
       font-size: 12px;
       line-height: 1.55;
     }
@@ -163,16 +219,18 @@
     }
 
     .hero-card {
-      padding: 18px;
+      padding: 18px 20px;
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 14px;
       align-items: center;
+      box-shadow: var(--shadow-lg);
     }
 
     .hero-card h2 {
       margin: 0 0 6px;
-      font-size: 20px;
+      font-size: 21px;
+      letter-spacing: -.02em;
     }
 
     .hero-card p {
@@ -185,9 +243,9 @@
     .status-pill {
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 7px 11px;
-      background: var(--panel-soft);
-      color: var(--muted);
+      padding: 8px 12px;
+      background: var(--cyan-soft);
+      color: var(--cyan);
       font-size: 12px;
       font-weight: 800;
       white-space: nowrap;
@@ -211,7 +269,7 @@
     .bubble {
       max-width: 86%;
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 12px 13px;
       line-height: 1.62;
       font-size: 14px;
@@ -223,7 +281,7 @@
       justify-self: end;
       color: #fff;
       border-color: var(--blue);
-      background: var(--blue);
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
     }
 
     .bubble.bot {
@@ -262,6 +320,8 @@
     h3 {
       margin: 0 0 12px;
       font-size: 16px;
+      font-weight: 850;
+      letter-spacing: -.01em;
     }
 
     .summary-grid {
@@ -272,9 +332,9 @@
 
     .metric {
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 12px;
-      background: #fff;
+      background: var(--panel);
       min-height: 86px;
     }
 
@@ -282,6 +342,7 @@
       display: block;
       font-size: 24px;
       line-height: 1.1;
+      color: var(--blue);
     }
 
     .metric span {
@@ -299,8 +360,8 @@
 
     .item {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px;
+      border-radius: 12px;
+      padding: 11px 12px;
       background: #fff;
     }
 
@@ -322,19 +383,25 @@
       display: inline-flex;
       align-items: center;
       border-radius: 999px;
-      padding: 3px 8px;
+      padding: 3px 9px;
       margin-right: 5px;
-      color: var(--green);
-      background: var(--green-soft);
-      border: 1px solid #a7f3d0;
+      color: var(--blue);
+      background: var(--blue-soft);
+      border: 1px solid #bfdbfe;
       font-size: 11px;
       font-weight: 900;
     }
 
     .tag.core {
-      color: var(--blue);
-      background: var(--blue-soft);
-      border-color: #bfdbfe;
+      color: var(--red);
+      background: var(--red-soft);
+      border-color: #fecaca;
+    }
+
+    .tag.ok {
+      color: var(--green);
+      background: var(--green-soft);
+      border-color: #a7f3d0;
     }
 
     .tag.reach {
@@ -357,9 +424,9 @@
 
     .admission-column {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
-      background: #fff;
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--panel-soft);
     }
 
     .admission-column h4 {
@@ -382,8 +449,8 @@
 
     .step {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
+      border-radius: 12px;
+      padding: 13px;
       background: #fff;
     }
 
@@ -413,7 +480,7 @@
 
     .notice {
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 12px;
       color: var(--muted);
       background: var(--panel-soft);
@@ -438,6 +505,8 @@
       main { padding: 14px; }
       .hero-card { grid-template-columns: 1fr; }
       .composer { grid-template-columns: 1fr; }
+      .header-inner { padding: 14px; }
+      .header-meta { display: none; }
     }
   </style>
 </head>
@@ -446,9 +515,10 @@
     <div class="header-inner">
       <div class="logo">R</div>
       <div>
-        <h1>울산 고교 과목 로드맵 AI 상담</h1>
+        <h1>울산 고교 <b>과목 로드맵 AI 상담</b></h1>
         <div class="subtitle">학교 편제표, 학과별 추천 과목, 대학어디가 입시결과 샘플을 연결한 상담 리포트</div>
       </div>
+      <div class="header-meta">학교 편제표 × 대학 전공<br>Graph RAG 상담 리포트</div>
     </div>
   </header>
 
@@ -684,7 +754,7 @@
 
     function renderAdmissionItem(item) {
       const grade = item.grade_70 || item.grade_50 || "-";
-      const bandClass = item.band === "상향" ? "reach" : item.band === "도전" ? "missing" : "core";
+      const bandClass = item.band === "상향" ? "reach" : item.band === "도전" ? "missing" : "ok";
       return `
         <div class="item">
           <strong><span class="tag ${bandClass}">${escapeHtml(item.band || item.bandLabel || "참고")}</span>${escapeHtml(item.university)}</strong>
