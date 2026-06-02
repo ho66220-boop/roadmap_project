@@ -91,6 +91,12 @@ python server.py
 
 브라우저에서 `http://localhost:8000` 접속
 
+### 시연 화면
+
+![진로 상담 챗봇 시연 화면](assets/demo-overview.png)
+
+학교, 학년, 내신, 목표 학과, 이수 과목을 입력해 과목 로드맵과 대학 후보 상담 리포트를 생성하는 화면입니다.
+
 API 테스트:
 
 ```powershell
