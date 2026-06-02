@@ -3,11 +3,26 @@ __pycache__/
 .venv/
 *.pyc
 
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
 # Local raw data and exports
 raw/
 exports/
 *.log
 data/admission_results_*.csv
+*.xlsx
+*.xls
+*.xlsm
+*.pdf
+*.hwp
+*.hwpx
 
 # OS/editor
 .DS_Store
