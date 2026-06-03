@@ -379,7 +379,7 @@ class GraphRAGEngine:
                 return major
         for major in graph.majors:
             major_key = self._major_base_key(major)
-            if major_key and (major_key in career_key or career_key in major_key):
+            if len(major_key) >= 2 and len(career_key) >= 2 and (major_key in career_key or career_key in major_key):
                 return major
         return career_major
 
@@ -552,6 +552,10 @@ class GraphRAGEngine:
 
     def _pick_major(self, text: Any) -> str:
         repaired = repair_text(text)
+        matched = self._match_major_text(repaired)
+        if matched:
+            return matched
+
         replacements = {
             "컴공": "컴퓨터공학",
             "컴퓨터": "컴퓨터공학",
@@ -562,16 +566,26 @@ class GraphRAGEngine:
         }
         for key, value in replacements.items():
             if key in repaired:
-                repaired = value
+                matched = self._match_major_text(value)
+                if matched:
+                    return matched
                 break
-        text_norm = norm(repaired)
+
+        return self._best_major_by_overlap(repaired)
+
+    def _match_major_text(self, text: str) -> str:
+        text_norm = norm(text)
         if not text_norm:
             return ""
         for major in self.graph.majors:
             major_norm = norm(major)
-            if major_norm == text_norm or major_norm in text_norm or text_norm in major_norm:
+            if major_norm == text_norm:
                 return major
-        return self._best_major_by_overlap(repaired)
+        for major in self.graph.majors:
+            major_norm = norm(major)
+            if major_norm in text_norm or text_norm in major_norm:
+                return major
+        return ""
 
     def _best_major_by_overlap(self, text: str) -> str:
         tokens = set(re.findall(r"[가-힣A-Za-z0-9]+", repair_text(text)))
