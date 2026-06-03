@@ -4,6 +4,7 @@ import argparse
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import sys
 from urllib.parse import urlparse
 
 from roadmap_rag.graph_rag import GraphRAGEngine
@@ -11,6 +12,8 @@ from roadmap_rag.graph_rag import GraphRAGEngine
 
 ROOT = Path(__file__).resolve().parent
 APP_DIR = ROOT / "app"
+DEFAULT_SAMPLE_WORKBOOK = ROOT / "data" / "sample_roadmap.xlsx"
+DEFAULT_PRIVATE_WORKBOOK = ROOT.parent / "울산고교_과목로드맵_수정.xlsx"
 
 
 class ChatbotHandler(SimpleHTTPRequestHandler):
@@ -51,13 +54,26 @@ class ChatbotHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Roadmap Graph RAG chatbot server")
+    parser = argparse.ArgumentParser(description="Roadmap counseling MVP server")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--workbook", default=str(ROOT.parent / "울산고교_과목로드맵_수정.xlsx"))
+    parser.add_argument(
+        "--workbook",
+        default=str(DEFAULT_SAMPLE_WORKBOOK if DEFAULT_SAMPLE_WORKBOOK.exists() else DEFAULT_PRIVATE_WORKBOOK),
+        help="로드맵 엑셀 파일 경로. 공개 저장소에서는 data/sample_roadmap.xlsx를 기본으로 사용합니다.",
+    )
     args = parser.parse_args()
 
-    ChatbotHandler.engine = GraphRAGEngine(Path(args.workbook))
+    try:
+        ChatbotHandler.engine = GraphRAGEngine(Path(args.workbook))
+    except FileNotFoundError:
+        print(
+            "원본 로드맵 엑셀 파일을 찾을 수 없습니다. README의 데이터 준비 방법을 확인하세요.",
+            file=sys.stderr,
+        )
+        print(f"요청한 경로: {args.workbook}", file=sys.stderr)
+        return 1
+
     server = ThreadingHTTPServer((args.host, args.port), ChatbotHandler)
     print(f"Roadmap chatbot: http://{args.host}:{args.port}")
     print(f"Workbook: {args.workbook}")

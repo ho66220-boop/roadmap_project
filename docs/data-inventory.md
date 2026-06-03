@@ -1,6 +1,8 @@
 # 데이터 인벤토리
 
-이 문서는 `C:\Users\Administrator\project\Road`에 있는 원자료를 기준으로 작성했습니다. GitHub 공개 저장소에는 원본 PDF/HWP/XLSX 전체를 올리기보다, 출처와 구조, 변환 스크립트, 샘플 데이터 중심으로 공개하는 것을 권장합니다.
+이 문서는 `C:\Users\Administrator\project\Road`에 있는 원자료를 기준으로 작성했습니다. GitHub 공개 저장소에는 원본 PDF/HWP/XLSX 파일을 포함하지 않습니다. 저작권, 개인정보, 재배포 가능 여부 검토가 필요한 자료는 로컬에만 보관하고, 공개 저장소에는 출처와 구조, 변환 스크립트, 샘플 데이터 중심으로 제공합니다.
+
+공개 저장소에서 바로 확인할 수 있는 데이터는 `data/sample_roadmap.xlsx`, `data/sample_graph.json`, `data/source_manifest.json`, `data/careernet_major_subjects.csv`입니다. 실제 상담 품질을 높이는 원본 편제표와 시행계획 자료는 공개 저장소에 포함되어 있지 않으므로, 재현 시 별도 데이터 준비가 필요합니다.
 
 ## 1. 로드맵 DB 엑셀
 

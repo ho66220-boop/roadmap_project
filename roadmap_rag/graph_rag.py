@@ -121,15 +121,17 @@ def split_subjects(text: str) -> list[str]:
 
 class GraphRAGEngine:
     def __init__(self, workbook_path: Path, admission_path: Path | None = None, careernet_path: Path | None = None):
+        project_root = Path(__file__).resolve().parents[1]
         self.workbook_path = workbook_path
-        self.admission_path = admission_path or workbook_path.parent / "roadmap_project" / "data" / "admission_results_core.csv"
-        self.careernet_path = careernet_path or workbook_path.parent / "roadmap_project" / "data" / "careernet_major_subjects.csv"
+        self.admission_path = admission_path or project_root / "data" / "admission_results_core.csv"
+        self.careernet_path = careernet_path or project_root / "data" / "careernet_major_subjects.csv"
         self.graph = self._load_graph(workbook_path)
 
     @classmethod
     def from_default_workbook(cls) -> "GraphRAGEngine":
         root = Path(__file__).resolve().parents[1]
-        return cls(root.parent / "울산고교_과목로드맵_수정.xlsx")
+        sample = root / "data" / "sample_roadmap.xlsx"
+        return cls(sample if sample.exists() else root.parent / "울산고교_과목로드맵_수정.xlsx")
 
     def meta(self) -> dict[str, Any]:
         return {
@@ -228,8 +230,8 @@ class GraphRAGEngine:
             "admission": admission,
             "graph": self._graph_payload(school, major, available[:6], unavailable[:4], admission),
             "sources": [
-                "울산고교_과목로드맵_수정.xlsx / 학교편제표",
-                "울산고교_과목로드맵_수정.xlsx / 로드맵DB_v2_대학트랙집계",
+                f"{self.workbook_path.name} / 학교편제표",
+                f"{self.workbook_path.name} / 로드맵DB_v2_대학트랙집계",
                 *(
                     ["data/careernet_major_subjects.csv / 커리어넷 2022 개정 선택과목"]
                     if self.graph.careernet_subject_count
@@ -249,7 +251,9 @@ class GraphRAGEngine:
 
     def _load_graph(self, workbook_path: Path) -> RoadmapGraph:
         if not workbook_path.exists():
-            raise FileNotFoundError(f"Workbook not found: {workbook_path}")
+            raise FileNotFoundError(
+                f"원본 로드맵 엑셀 파일을 찾을 수 없습니다. README의 데이터 준비 방법을 확인하세요: {workbook_path}"
+            )
 
         workbook = openpyxl.load_workbook(workbook_path, data_only=True, read_only=True)
         graph = RoadmapGraph()

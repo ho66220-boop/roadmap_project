@@ -24,6 +24,11 @@ data/admission_results_*.csv
 *.hwp
 *.hwpx
 
+# Public sample data exceptions
+!data/sample_*.csv
+!data/sample_*.xlsx
+!data/careernet_major_subjects.csv
+
 # OS/editor
 .DS_Store
 Thumbs.db
