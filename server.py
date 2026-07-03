@@ -12,8 +12,8 @@ from roadmap_rag.graph_rag import GraphRAGEngine
 
 ROOT = Path(__file__).resolve().parent
 APP_DIR = ROOT / "app"
-DEFAULT_SAMPLE_WORKBOOK = ROOT / "data" / "sample_roadmap.xlsx"
-DEFAULT_PRIVATE_WORKBOOK = ROOT.parent / "울산고교_과목로드맵_수정.xlsx"
+DEFAULT_WORKBOOK = ROOT.parent / "울산고교_과목로드맵_수정.xlsx"
+DEFAULT_CURRICULUM = ROOT / "data" / "curriculum_g1_2026.xlsx"
 
 
 class ChatbotHandler(SimpleHTTPRequestHandler):
@@ -59,24 +59,26 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
         "--workbook",
-        default=str(DEFAULT_SAMPLE_WORKBOOK if DEFAULT_SAMPLE_WORKBOOK.exists() else DEFAULT_PRIVATE_WORKBOOK),
-        help="로드맵 엑셀 파일 경로. 공개 저장소에서는 data/sample_roadmap.xlsx를 기본으로 사용합니다.",
+        default=str(DEFAULT_WORKBOOK),
+        help="로드맵 엑셀 파일 경로(학과추천/대학트랙/제시율/과목마스터 시트 필요).",
+    )
+    parser.add_argument(
+        "--curriculum",
+        default=str(DEFAULT_CURRICULUM),
+        help="전처리 편제표 경로. scripts/build_curriculum.py로 생성합니다.",
     )
     args = parser.parse_args()
 
     try:
-        ChatbotHandler.engine = GraphRAGEngine(Path(args.workbook))
-    except FileNotFoundError:
-        print(
-            "원본 로드맵 엑셀 파일을 찾을 수 없습니다. README의 데이터 준비 방법을 확인하세요.",
-            file=sys.stderr,
-        )
-        print(f"요청한 경로: {args.workbook}", file=sys.stderr)
+        ChatbotHandler.engine = GraphRAGEngine(Path(args.workbook), Path(args.curriculum))
+    except FileNotFoundError as error:
+        print(str(error), file=sys.stderr)
         return 1
 
     server = ThreadingHTTPServer((args.host, args.port), ChatbotHandler)
     print(f"Roadmap chatbot: http://{args.host}:{args.port}")
     print(f"Workbook: {args.workbook}")
+    print(f"Curriculum: {args.curriculum}")
     server.serve_forever()
     return 0
 
