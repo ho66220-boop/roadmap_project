@@ -22,9 +22,16 @@
 
 ## 화면
 
-| 상담 요약 | ① 학과 추천 + ② 대학별 강조 | ③ 편제표 대조 (택N 배지) |
-| --- | --- | --- |
-| ![상담 요약](assets/screenshot-summary.png) | ![추천 과목](assets/screenshot-recommend.png) | ![편제표 대조](assets/screenshot-match.png) |
+**상담 요약** — 학교·학과 입력 한 번으로 커버리지와 핵심 지표가 나옵니다.
+
+<img src="assets/screenshot-summary.png" alt="상담 요약" width="100%">
+
+**① 학과 추천 + ② 대학별 강조** (왼쪽) / **③ 편제표 대조** — 학교지정·택N 배지와 미개설 라벨 (오른쪽)
+
+<p>
+  <img src="assets/screenshot-recommend.png" alt="학과 추천과 대학별 강조 과목" width="49%">
+  <img src="assets/screenshot-match.png" alt="편제표 대조 — 택N 배지와 미개설 라벨" width="49%">
+</p>
 
 ## 아키텍처
 
