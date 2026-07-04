@@ -55,8 +55,8 @@ python scripts\export_for_gsheet.py    # data/gsheet_upload.xlsx 생성
 
 ## 동작 특성·주의
 
-- 요청마다 시트 전체(약 2만 행)를 읽으므로 응답에 **2~5초** 걸립니다. UI에 로딩 표시가 있습니다.
+- 요청마다 시트 전체(약 2.3만 행)를 읽으므로 응답에 **2~5초** 걸립니다. UI에 로딩 표시가 있습니다.
 - Apps Script 무료 할당량(일일 실행 시간 등)은 학원 규모 사용에는 충분합니다.
-- 학교 추가(이미 파싱된 41개교 중에서 노출만 늘리는 경우): `data/target_schools.csv`에 한 줄 추가 → `python scripts\export_for_gsheet.py` 재실행 → 시트 교체. 전수 재파싱(`build_curriculum.py`) 불필요 — `export_for_gsheet.py`가 고1편제표 노출을 `target_schools.csv` 기준으로 필터링한다(`--all`로 필터 해제 가능).
-- 41개교에 없는 새 학교를 추가하는 경우엔 먼저 `data/curriculum_sheetmap.csv`에 시트맵을 추가하고 `build_curriculum.py`를 재실행해야 합니다.
+- **노출 범위**: 기본으로 파싱된 전 학교(40개교, 울산외고는 영어과/비영어과 분리)를 노출해 로컬 파이썬 서버와 동일합니다. 재원생 학교(10개교)만 노출하려면 `python scripts\export_for_gsheet.py --target-only`로 생성한 파일을 쓰세요.
+- 파싱된 적 없는 새 학교를 추가하는 경우엔 `data/curriculum_sheetmap.csv`에 시트맵을 추가하고 `build_curriculum.py` → `export_for_gsheet.py`를 재실행해야 합니다.
 - 시트를 직접 수정해도 됩니다(예: 미개설 과목 보정). 단 열 순서는 유지하세요.

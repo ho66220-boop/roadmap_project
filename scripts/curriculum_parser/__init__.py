@@ -196,9 +196,11 @@ def _emit(result, raw, piece, school, source_file, sheet_title, master, cross=Fa
     if not cleaned:
         return
     official = matching.match_subject(cleaned, master)
+    # 온라인공동교육과정 접미('(온공)')가 붙은 과목은 구분을 공동교육과정으로 승격
+    section = "공동교육과정" if cells.has_joint_suffix(piece) else raw.section
     result.rows.append(ParsedRow(
         school=school,
-        section=raw.section,
+        section=section,
         subject_group=raw.group,
         subject_type=raw.subtype,
         raw_name=piece.strip(),

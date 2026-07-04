@@ -50,7 +50,24 @@ def parse_joint_semesters(text) -> list[str]:
 # 학교 표기와 공식 과목명이 다른 알려진 별칭
 NAME_ALIASES = {
     "동아시아사 역사 기행": "동아시아 역사 기행",
+    "전지기와 양자": "전자기와 양자",
+    "미적분I": "미적분Ⅰ",   # 반각 라틴 I
+    "미적분II": "미적분Ⅱ",  # 반각 라틴 I 두 개
+    "미술(학교 지정)": "미술",
 }
+
+# 온라인공동교육과정 접미('...(온공)') — 매칭 전 제거 + 해당 행 구분을 공동교육과정으로 승격
+JOINT_SUFFIX = re.compile(r"\(\s*온\s*공\s*\)\s*$")
+
+
+def has_joint_suffix(name: str) -> bool:
+    """과목명 원문에 온라인공동교육과정 접미('(온공)')가 있는지 확인한다.
+
+    각주 마커(★▲ 등)가 '(온공)' 뒤에 덧붙는 경우가 있어 strip_markers와 동일하게
+    마커를 먼저 제거한 뒤 말미를 검사한다.
+    """
+    text = FOOTNOTE_MARKERS.sub("", nfc(repair_text(name))).strip()
+    return bool(JOINT_SUFFIX.search(text))
 
 # 앞머리 숫자 토큰(옵션 괄호 허용): "4", "(70)", "29", "3.5"
 _LEAD_NUM = re.compile(r"^\(?\s*(\d+(?:\.\d+)?)")
@@ -146,6 +163,7 @@ def strip_markers(name: str) -> str:
     cleaned = nfc(repair_text(name))
     cleaned = FOOTNOTE_MARKERS.sub("", cleaned).strip()
     cleaned = CHOICE_SUFFIX.sub("", cleaned).strip()
+    cleaned = JOINT_SUFFIX.sub("", cleaned).strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return NAME_ALIASES.get(cleaned, cleaned)
 

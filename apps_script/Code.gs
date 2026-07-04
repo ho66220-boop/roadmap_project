@@ -22,11 +22,28 @@ var SEMESTER_LABELS = {
 // 대학트랙 과목명에 등장하는 교과(군) 단위 포괄 표현 — 개별 과목이 아니므로 편제표 대조에서 제외
 var GROUP_TERMS = {
   '국어': 1, '수학': 1, '영어': 1, '사회': 1, '과학': 1, '한국사': 1, '체육': 1, '예술': 1,
-  '기술가정': 1, '정보': 1, '제2외국어': 1, '한문': 1, '교양': 1, '사회역사도덕포함': 1
+  '기술가정': 1, '정보': 1, '제2외국어': 1, '한문': 1, '교양': 1, '사회역사도덕포함': 1,
+  // 구 교육과정식 대학트랙 표현(2022 개정 개별 과목이 아닌 교과 단위 포괄)
+  '역사': 1, '윤리': 1, '지리': 1, '일반사회': 1, '과학교과': 1, '수학1': 1, '수학2': 1,
+  '한국사12': 1, '전과목': 1, '과학전과목': 1, '수학전과목': 1,
+  '제2외국어관련과목': 1, '제2외국어과목': 1, '제3외국어과목': 1,
+  // 원문이 원문자(circled digit) 글리프를 써서 norm()이 로마숫자처럼 변환하지 못하는 실측 표기
+  '수학①': 1, '수학②': 1
 };
 
 // 구식/포괄 과목 표기 -> 2022 개정 공식 과목명
-var L2_SUBJECT_ALIASES = { '미적분': ['미적분Ⅰ', '미적분Ⅱ'] };
+var L2_SUBJECT_ALIASES = {
+  '미적분': ['미적분Ⅰ', '미적분Ⅱ'],
+  '물리': ['물리학'],
+  '한국지리': ['한국지리 탐구'],
+  '동아시아사': ['동아시아 역사 기행'],
+  '수학(특히 미적분)': ['미적분Ⅰ', '미적분Ⅱ'],
+  '프랑스 회화': ['프랑스어 회화'],
+  '도시와 미래탐구': ['도시의 미래 탐구'],
+  '과학과제 탐구': ['과학과제 연구'],
+  '물리과 에너지': ['역학과 에너지'],
+  '독해와 작문': ['영어 독해와 작문']
+};
 
 // 목표 학과 축약 표현 보정
 var MAJOR_REPLACEMENTS = {
@@ -83,13 +100,14 @@ function sheetValues_(name) {
 
 function loadStore_() {
   var store = {
-    schools: {},          // 학교 -> [{subject, section, group, type, semesters[]}]
+    schools: {},          // 학교 -> [{subject, section, group, type, semesters[], choiceGroup, takeN}]
     deptRecs: {},         // 학과 -> {일반: [], 진로: [], 융합: []}
     deptTrack: {},        // 학과 -> 계열
     uniTracks: [],        // {university, unit, subject, trackType, comment}
     rateByDept: {},       // 학과 -> {과목: 비율}
     rateByTrack: {},      // 계열 -> {과목: 비율}
-    subjectMaster: {}     // 정규화키 -> 공식과목명
+    subjectMaster: {},    // 정규화키 -> 공식과목명
+    allOfferedKeys: {}    // 전 학교(GAS 노출 범위 기준) 개설과목 norm키 집합(공통 미개설 판정용)
   };
 
   sheetValues_('과목마스터').forEach(function (row) {
@@ -139,14 +157,18 @@ function loadStore_() {
     for (var i = 0; i < SEMESTER_KEYS.length; i++) {
       if (toFloat(row[10 + i]) > 0) semesters.push(SEMESTER_KEYS[i]);
     }
+    var subject = String(row[6] || row[5]).trim();
     if (!store.schools[school]) store.schools[school] = [];
     store.schools[school].push({
-      subject: String(row[6] || row[5]).trim(),
+      subject: subject,
       section: String(row[2] || '').trim(),
       group: String(row[3] || '').trim(),
       type: String(row[4] || '').trim(),
-      semesters: semesters
+      semesters: semesters,
+      choiceGroup: row[18] ? String(row[18]).trim() : '',
+      takeN: row[19] ? parseInt(row[19], 10) || 0 : 0
     });
+    store.allOfferedKeys[norm(subject)] = 1;
   });
 
   return store;
@@ -254,10 +276,15 @@ function majorSimilarity_(target, candidate) {
   return 0;
 }
 
-/** 대학트랙 과목명을 (개별 공식과목들, 교과군 포괄 표현들)로 분해한다. */
+/** 대학트랙 과목명을 (개별 공식과목들, 교과군 포괄 표현들, 폐기된 원문들)로 분해한다.
+ *
+ * 마스터에도 GROUP_TERMS에도 걸리지 않는 잔여는 가짜 과목으로 남기지 않고 폐기한다
+ * (감사 결과 마스터-정합 과목은 전부 매칭되므로 안전. 폐기 건은 layer2.dropped_terms로 노출).
+ */
 function expandTrackSubject_(store, text) {
   var subjects = [];
   var groups = [];
+  var dropped = [];
   String(text).split(/\s*(?:또는|,|\/)\s*/).forEach(function (part) {
     part = part.trim();
     if (!part) return;
@@ -267,15 +294,16 @@ function expandTrackSubject_(store, text) {
       var official = store.subjectMaster[key];
       if (official) subjects.push(official);
       else if (GROUP_TERMS[key]) groups.push(part);
+      else dropped.push(item);
     });
   });
-  if (!subjects.length && !groups.length) subjects.push(String(text).trim());
-  return { subjects: subjects, groups: groups };
+  return { subjects: subjects, groups: groups, dropped: dropped };
 }
 
 function layer2Universities_(store, major) {
   var agg = {};
   var groupMentions = {};
+  var droppedCounts = {};
   var matchedUnits = {};
 
   store.uniTracks.forEach(function (row) {
@@ -287,6 +315,9 @@ function layer2Universities_(store, major) {
     expanded.groups.forEach(function (group) {
       if (!groupMentions[group]) groupMentions[group] = {};
       groupMentions[group][row.university] = 1;
+    });
+    expanded.dropped.forEach(function (term) {
+      droppedCounts[term] = (droppedCounts[term] || 0) + 1;
     });
     expanded.subjects.forEach(function (subject) {
       if (!agg[subject]) agg[subject] = { subject: subject, universities: {}, types: {}, comment: '' };
@@ -320,11 +351,17 @@ function layer2Universities_(store, major) {
   });
   groups.sort(function (a, b) { return b.university_count - a.university_count; });
 
+  var droppedTerms = Object.keys(droppedCounts).map(function (term) {
+    return { term: term, count: droppedCounts[term] };
+  });
+  droppedTerms.sort(function (a, b) { return b.count - a.count; });
+
   return {
     unit_count: Object.keys(matchedUnits).length,
     units_sample: Object.keys(matchedUnits).sort().slice(0, 8),
     subjects: subjects.slice(0, 20),
-    group_mentions: groups
+    group_mentions: groups,
+    dropped_terms: droppedTerms
   };
 }
 
@@ -384,8 +421,22 @@ function layer3School_(store, school, layer1, layer2) {
       item.semesters = semesters;
       item.semester_labels = semesters.map(function (s) { return SEMESTER_LABELS[s]; });
       item.sections = Object.keys(secSet).sort();
+
+      // 같은 과목이 여러 행이면 지정(택N 그룹 미소속) 우선(감사상 충돌 0건이라 실질 단일)
+      var plainRows = rows.filter(function (r) { return !r.choiceGroup; });
+      if (plainRows.length) {
+        item.mode = '지정';
+        item.take_n = 0;
+        item.choice_group = '';
+      } else {
+        var rep = rows[0];
+        item.mode = '선택군';
+        item.take_n = rep.takeN;
+        item.choice_group = rep.choiceGroup;
+      }
       available.push(item);
     } else {
+      item.scope = store.allOfferedKeys[norm(info.subject)] ? '' : '공통 미개설';
       unavailable.push(item);
     }
   });
@@ -518,17 +569,30 @@ function composeAnswer_(result) {
     var availLines = [result.school + ' 편제표 확인\n위 추천 과목 중 ' + result.school + '에서 실제 선택할 수 있는 과목은 다음과 같습니다.'];
     layer3.available.slice(0, 6).forEach(function (item) {
       var sems = (item.semester_labels || []).join(', ') || '학기 미확정';
-      availLines.push('- ' + item.subject + ' [' + item.source + '] → ' + sems);
+      var modeNote;
+      if (item.mode === '선택군') {
+        modeNote = item.take_n ? ' (택' + item.take_n + ' 선택군 — 선택 신청 필요)' : ' (선택군 — 선택 신청 필요)';
+      } else {
+        modeNote = ' (학교지정)';
+      }
+      availLines.push('- ' + item.subject + ' [' + item.source + ']' + modeNote + ' → ' + sems);
     });
     lines.push(availLines.join('\n'));
   } else {
     lines.push(result.school + ' 편제표 확인\n추천 과목 중 ' + result.school + ' 편제표에서 확인되는 과목이 없습니다. 편제표 데이터를 점검해 주세요.');
   }
 
-  if (layer3.unavailable.length) {
-    var names = layer3.unavailable.slice(0, 5).map(function (i) { return i.subject; }).join(', ');
+  var unavailableCommon = layer3.unavailable.filter(function (i) { return i.scope === '공통 미개설'; });
+  var unavailableNormal = layer3.unavailable.filter(function (i) { return i.scope !== '공통 미개설'; });
+  if (unavailableNormal.length) {
+    var names = unavailableNormal.slice(0, 5).map(function (i) { return i.subject; }).join(', ');
     lines.push('미개설 과목\n' + names + '은(는) 추천 근거에는 있지만 ' + result.school
       + ' 편제표에서 확인되지 않습니다. 공동교육과정이나 온라인학교 개설 여부를 확인해 보세요.');
+  }
+  if (unavailableCommon.length) {
+    var commonNames = unavailableCommon.slice(0, 5).map(function (i) { return i.subject; }).join(', ');
+    lines.push('일반고 공통 미개설\n' + commonNames + '은(는) 조사된 모든 학교 편제표에서 확인되지 않습니다. '
+      + '일반고 공통 미개설 — 공동교육과정·온라인학교 확인이 필요합니다.');
   }
 
   lines.push('주의\n' + result.caution);
@@ -540,7 +604,7 @@ function needMore_(message) {
     mode: 'need_more',
     answer: message,
     layer1: { dept: '', track: '', categories: [], total: 0 },
-    layer2: { unit_count: 0, units_sample: [], subjects: [], group_mentions: [] },
+    layer2: { unit_count: 0, units_sample: [], subjects: [], group_mentions: [], dropped_terms: [] },
     layer3: { school: '', offering_count: 0, available: [], unavailable: [], plan: [] },
     sources: [],
     caution: ''

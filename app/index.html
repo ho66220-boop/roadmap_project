@@ -536,7 +536,6 @@
       </div>
 
       <button id="quick">상담 리포트 생성</button>
-      <button id="sample" class="secondary">간호학과 예시 불러오기</button>
       <div class="meta" id="meta">데이터 로딩 중</div>
     </aside>
 
@@ -551,10 +550,6 @@
 
       <section class="panel chat">
         <div class="messages" id="messages"></div>
-        <div class="composer">
-          <textarea id="message">신정고 고1이고 컴퓨터공학과 희망인데 과목 추천해줘</textarea>
-          <button id="send">질문</button>
-        </div>
       </section>
 
       <section class="dashboard">
@@ -588,19 +583,9 @@
           <div class="list" id="missing"><div class="empty">편제표에서 확인되지 않는 추천 과목이 표시됩니다.</div></div>
         </article>
 
-        <article class="panel box span-8">
+        <article class="panel box span-12">
           <h3>학기별 수강 로드맵</h3>
           <div class="list" id="plan"><div class="empty">추천 과목의 개설 학기 기준 로드맵이 표시됩니다.</div></div>
-        </article>
-
-        <article class="panel box span-4">
-          <h3>데이터 출처</h3>
-          <div class="list" id="sources"><div class="empty">추천에 사용한 데이터 출처가 표시됩니다.</div></div>
-        </article>
-
-        <article class="panel box span-12">
-          <h3>추천 근거 흐름</h3>
-          <div id="evidence"><div class="empty">커리어넷 → 대교협 → 학교 편제표 연결 관계가 표시됩니다.</div></div>
         </article>
 
         <article class="panel box span-12">
@@ -678,8 +663,6 @@
       renderAvailable((data.layer3 || {}).available || []);
       renderMissing((data.layer3 || {}).unavailable || []);
       renderPlan((data.layer3 || {}).plan || []);
-      renderSources(data.sources || []);
-      renderEvidence(data);
     }
 
     function renderCareernet(layer1) {
@@ -717,12 +700,10 @@
       $("unitrack").innerHTML = subjects.slice(0, 10).map(item => {
         const tagClass = item.type === "핵심" ? "core" : "ok";
         const rate = item.rate ? ` · 제시율 ${Math.round(item.rate)}%` : "";
-        const unis = (item.universities || []).join(", ");
         return `
           <div class="item">
             <strong><span class="tag ${tagClass}">${escapeHtml(item.type)}</span>${escapeHtml(item.subject)}</strong>
             <span>${item.university_count}개 대학 제시${rate}</span>
-            <span>${escapeHtml(unis)}${item.university_count > (item.universities || []).length ? " 외" : ""}</span>
           </div>`;
       }).join("");
     }
@@ -743,21 +724,33 @@
         $("available").innerHTML = `<div class="empty">편제표에서 확인된 추천 과목이 없습니다.</div>`;
         return;
       }
-      $("available").innerHTML = items.slice(0, 12).map(item => `
+      $("available").innerHTML = items.slice(0, 12).map(item => {
+        const modeTag = item.mode === "선택군"
+          ? `<span class="tag">택${item.take_n || "N"}</span>`
+          : `<span class="tag ok">지정</span>`;
+        return `
         <div class="item">
-          <strong><span class="tag core">${escapeHtml(item.source)}</span>${escapeHtml(item.subject)}</strong>
+          <strong><span class="tag core">${escapeHtml(item.source)}</span>${modeTag}${escapeHtml(item.subject)}</strong>
           <span>${escapeHtml((item.semester_labels || []).join(", ") || "학기 미확정")}</span>
           <span>${escapeHtml((item.sections || []).join(" · "))}</span>
-        </div>`).join("");
+        </div>`;
+      }).join("");
     }
 
     function renderMissing(items) {
       $("missing").innerHTML = items.length
-        ? items.slice(0, 8).map(item => `
+        ? items.slice(0, 8).map(item => {
+            const isCommon = item.scope === "공통 미개설";
+            const scopeTag = isCommon ? `<span class="tag missing">공통 미개설</span>` : "";
+            const note = isCommon
+              ? "일반고 공통 미개설 · 공동교육과정/온라인학교 확인 필요"
+              : "편제표 미확인 · 공동교육과정/온라인학교 확인 필요";
+            return `
             <div class="item">
-              <strong><span class="tag missing">${escapeHtml(item.source)}</span>${escapeHtml(item.subject)}</strong>
-              <span>편제표 미확인 · 공동교육과정/온라인학교 확인 필요</span>
-            </div>`).join("")
+              <strong><span class="tag missing">${escapeHtml(item.source)}</span>${scopeTag}${escapeHtml(item.subject)}</strong>
+              <span>${note}</span>
+            </div>`;
+          }).join("")
         : `<div class="empty">추천 과목이 모두 편제표에서 확인됩니다.</div>`;
     }
 
@@ -771,12 +764,6 @@
           <strong>${escapeHtml(item.label || item.semester)}</strong>
           <span>${(item.subjects || []).map(s => `<span class="tag">${escapeHtml(s)}</span>`).join("")}</span>
         </div>`).join("");
-    }
-
-    function renderSources(sources) {
-      $("sources").innerHTML = sources.length
-        ? sources.map(s => `<div class="item"><span>${escapeHtml(s)}</span></div>`).join("")
-        : `<div class="empty">출처 정보가 없습니다.</div>`;
     }
 
     function renderReport(data) {
@@ -798,36 +785,13 @@
         </div>`;
     }
 
-    function renderEvidence(data) {
-      const layer1 = data.layer1 || {};
-      const layer2 = data.layer2 || {};
-      const layer3 = data.layer3 || {};
-      const coreSubjects = (layer2.subjects || []).filter(s => s.type === "핵심").slice(0, 4).map(s => s.subject).join(", ") || "핵심 과목 없음";
-      const firstAvailable = (layer3.available || []).slice(0, 4).map(x => x.subject).join(", ") || "확인된 과목 없음";
-      $("evidence").innerHTML = `
-        <div class="evidence-flow">
-          <div class="step"><small>1. 커리어넷</small><strong>${escapeHtml(data.major || "목표 학과")}</strong><p>${escapeHtml(layer1.track || "계열")} 기준 일반/진로/융합 추천 ${layer1.total || 0}과목을 수집했습니다.</p></div>
-          <div class="step"><small>2. 대교협</small><strong>모집단위 ${layer2.unit_count || 0}곳</strong><p>대학별 핵심 과목: ${escapeHtml(coreSubjects)}</p></div>
-          <div class="step"><small>3. 학교 편제표</small><strong>${escapeHtml(data.school || "학교")}</strong><p>편제표에서 선택 가능한 과목과 학기를 확인했습니다. 우선 과목: ${escapeHtml(firstAvailable)}</p></div>
-        </div>`;
-    }
-
     function escapeHtml(value) {
       return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
     }
 
-    $("send").addEventListener("click", () => ask($("message").value.trim()));
     $("quick").addEventListener("click", () => {
       const p = profile();
       ask(`${p.school} 고1이고 ${p.major} 희망입니다. 과목을 추천해주세요.`);
-    });
-    $("sample").addEventListener("click", () => {
-      $("school").value = "울산여고";
-      $("major").value = "간호학과";
-      $("message").value = "울산여고 고1이고 간호학과 희망인데 과목 추천해줘";
-    });
-    $("message").addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) ask($("message").value.trim());
     });
 
     loadMeta();

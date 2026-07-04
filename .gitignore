@@ -34,3 +34,4 @@ data/admission_results_*.csv
 Thumbs.db
 .idea/
 .vscode/
+data/gsheet_csv/

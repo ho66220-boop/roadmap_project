@@ -30,11 +30,26 @@ SEMESTER_KEYS = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2"]
 GROUP_TERMS = {
     "국어", "수학", "영어", "사회", "과학", "한국사", "체육", "예술",
     "기술가정", "정보", "제2외국어", "한문", "교양", "사회역사도덕포함",
+    # 구 교육과정식 대학트랙 표현(2022 개정 개별 과목이 아닌 교과 단위 포괄)
+    "역사", "윤리", "지리", "일반사회", "과학교과", "수학1", "수학2",
+    "한국사12", "전과목", "과학전과목", "수학전과목",
+    "제2외국어관련과목", "제2외국어과목", "제3외국어과목",
+    # 원문이 원문자(circled digit) 글리프를 써서 norm()이 로마숫자처럼 변환하지 못하는 실측 표기
+    "수학①", "수학②",
 }
 
 # 대학트랙의 구식/포괄 과목 표기 -> 2022 개정 공식 과목명
 L2_SUBJECT_ALIASES = {
     "미적분": ["미적분Ⅰ", "미적분Ⅱ"],
+    "물리": ["물리학"],
+    "한국지리": ["한국지리 탐구"],
+    "동아시아사": ["동아시아 역사 기행"],
+    "수학(특히 미적분)": ["미적분Ⅰ", "미적분Ⅱ"],
+    "프랑스 회화": ["프랑스어 회화"],
+    "도시와 미래탐구": ["도시의 미래 탐구"],
+    "과학과제 탐구": ["과학과제 연구"],
+    "물리과 에너지": ["역학과 에너지"],
+    "독해와 작문": ["영어 독해와 작문"],
 }
 SEMESTER_LABELS = {
     "1-1": "1학년 1학기", "1-2": "1학년 2학기",
@@ -92,6 +107,8 @@ class Offering:
     group: str            # 교과군
     subject_type: str     # 공통/일반/진로/융합
     semesters: tuple[str, ...]
+    choice_group: str = ""  # 선택군ID(택N 그룹). 미해당 시 ""
+    take_n: int = 0          # 택N의 N. 미해당 시 0
 
 
 @dataclass(frozen=True)
@@ -107,6 +124,7 @@ class UniTrackRow:
 @dataclass
 class DataStore:
     schools: dict[str, list[Offering]] = field(default_factory=dict)
+    all_offered_keys: set = field(default_factory=set)                          # 전 학교 개설과목 norm키(공통 미개설 판정용)
     dept_recs: dict[str, dict[str, list[str]]] = field(default_factory=dict)   # 학과 -> 추천구분 -> 과목들
     dept_track: dict[str, str] = field(default_factory=dict)                    # 학과 -> 계열
     uni_tracks: list[UniTrackRow] = field(default_factory=list)
@@ -191,16 +209,19 @@ class GraphRAGEngine:
                 continue
             school = repair_text(row[0])
             semesters = tuple(key for i, key in enumerate(SEMESTER_KEYS) if to_float(row[10 + i]) > 0)
-            store.schools.setdefault(school, []).append(
-                Offering(
-                    subject=repair_text(row[6]),
-                    matched=repair_text(row[7]) == "O",
-                    section=repair_text(row[2]),
-                    group=repair_text(row[3]),
-                    subject_type=repair_text(row[4]),
-                    semesters=semesters,
-                )
+            subject = repair_text(row[6])
+            offering = Offering(
+                subject=subject,
+                matched=repair_text(row[7]) == "O",
+                section=repair_text(row[2]),
+                group=repair_text(row[3]),
+                subject_type=repair_text(row[4]),
+                semesters=semesters,
+                choice_group=repair_text(row[18]) if len(row) > 18 else "",
+                take_n=int(to_float(row[19])) if len(row) > 19 else 0,
             )
+            store.schools.setdefault(school, []).append(offering)
+            store.all_offered_keys.add(norm(subject))
         wb.close()
 
     # ------------------------------------------------------------------ api
@@ -284,12 +305,14 @@ class GraphRAGEngine:
         }
 
     # -------------------------------------------------------------- layer 2
-    def _expand_track_subject(self, text: str) -> tuple[list[str], list[str]]:
-        """대학트랙 과목명을 (개별 공식과목들, 교과군 포괄 표현들)로 분해한다.
+    def _expand_track_subject(self, text: str) -> tuple[list[str], list[str], list[str]]:
+        """대학트랙 과목명을 (개별 공식과목들, 교과군 포괄 표현들, 폐기된 원문들)로 분해한다.
 
-        예: '기하 또는 미적분Ⅱ' -> (['기하', '미적분Ⅱ'], []) / '과학' -> ([], ['과학'])
+        예: '기하 또는 미적분Ⅱ' -> (['기하', '미적분Ⅱ'], [], []) / '과학' -> ([], ['과학'], [])
+        마스터에도 GROUP_TERMS에도 걸리지 않는 잔여는 가짜 과목으로 남기지 않고 폐기한다
+        (감사 결과 마스터-정합 과목은 전부 매칭되므로 안전. 폐기 건은 layer2.dropped_terms로 노출).
         """
-        subjects, groups = [], []
+        subjects, groups, dropped = [], [], []
         for part in re.split(r"\s*(?:또는|,|/)\s*", text):
             part = part.strip()
             if not part:
@@ -301,14 +324,14 @@ class GraphRAGEngine:
                     subjects.append(official)
                 elif key in GROUP_TERMS:
                     groups.append(part)
-        # 전부 미분류면 원문을 과목으로 취급(마스터 밖의 실제 과목일 수 있음)
-        if not subjects and not groups:
-            subjects.append(text)
-        return subjects, groups
+                else:
+                    dropped.append(expanded)
+        return subjects, groups, dropped
 
     def _layer2_universities(self, major: str) -> dict[str, Any]:
         agg: dict[str, dict[str, Any]] = {}
         group_mentions: dict[str, set] = defaultdict(set)
+        dropped_counts: dict[str, int] = defaultdict(int)
         matched_units = set()
         for row in self.store.uni_tracks:
             if row.subject.startswith("("):  # (계열 공통) 등 메타 행
@@ -316,9 +339,11 @@ class GraphRAGEngine:
             if self._major_similarity(major, row.unit) < 70:
                 continue
             matched_units.add(f"{row.university} {row.unit}")
-            subjects, groups = self._expand_track_subject(row.subject)
+            subjects, groups, dropped = self._expand_track_subject(row.subject)
             for group in groups:
                 group_mentions[group].add(row.university)
+            for term in dropped:
+                dropped_counts[term] += 1
             for subject in subjects:
                 item = agg.setdefault(
                     subject,
@@ -351,6 +376,10 @@ class GraphRAGEngine:
             "group_mentions": sorted(
                 ({"group": g, "university_count": len(unis)} for g, unis in group_mentions.items()),
                 key=lambda x: -x["university_count"],
+            ),
+            "dropped_terms": sorted(
+                ({"term": term, "count": count} for term, count in dropped_counts.items()),
+                key=lambda x: -x["count"],
             ),
         }
 
@@ -386,16 +415,27 @@ class GraphRAGEngine:
             rows = offer_map.get(norm(info["subject"]))
             if rows:
                 semesters = sorted({s for r in rows for s in r.semesters})
+                # 같은 과목이 여러 행이면 지정(택N 그룹 미소속) 우선(감사상 충돌 0건이라 실질 단일)
+                plain_rows = [r for r in rows if not r.choice_group]
+                if plain_rows:
+                    mode, take_n, choice_group = "지정", 0, ""
+                else:
+                    rep = rows[0]
+                    mode, take_n, choice_group = "선택군", rep.take_n, rep.choice_group
                 available.append(
                     {
                         **{k: v for k, v in info.items() if k != "rank"},
                         "semesters": semesters,
                         "semester_labels": [SEMESTER_LABELS[s] for s in semesters],
                         "sections": sorted({r.section for r in rows if r.section}),
+                        "mode": mode,
+                        "take_n": take_n,
+                        "choice_group": choice_group,
                     }
                 )
             else:
-                unavailable.append({k: v for k, v in info.items() if k != "rank"})
+                scope = "공통 미개설" if norm(info["subject"]) not in self.store.all_offered_keys else ""
+                unavailable.append({**{k: v for k, v in info.items() if k != "rank"}, "scope": scope})
 
         # 학기별 정리(로드맵 뷰): 2학년 이후 학기 중심
         by_semester: dict[str, list[str]] = defaultdict(list)
@@ -561,16 +601,28 @@ class GraphRAGEngine:
             ]
             for item in top:
                 sems = ", ".join(item["semester_labels"]) or "학기 미확정"
-                avail_lines.append(f"- {item['subject']} [{item['source']}] → {sems}")
+                if item.get("mode") == "선택군":
+                    mode_note = f" (택{item['take_n']} 선택군 — 선택 신청 필요)" if item.get("take_n") else " (선택군 — 선택 신청 필요)"
+                else:
+                    mode_note = " (학교지정)"
+                avail_lines.append(f"- {item['subject']} [{item['source']}]{mode_note} → {sems}")
             lines.append("\n".join(avail_lines))
         else:
             lines.append(f"{school} 편제표 확인\n추천 과목 중 {school} 편제표에서 확인되는 과목이 없습니다. 편제표 데이터를 점검해 주세요.")
 
-        if layer3["unavailable"]:
-            names = ", ".join(item["subject"] for item in layer3["unavailable"][:5])
+        unavailable_common = [item for item in layer3["unavailable"] if item.get("scope") == "공통 미개설"]
+        unavailable_normal = [item for item in layer3["unavailable"] if item.get("scope") != "공통 미개설"]
+        if unavailable_normal:
+            names = ", ".join(item["subject"] for item in unavailable_normal[:5])
             lines.append(
                 f"미개설 과목\n{names}은(는) 추천 근거에는 있지만 {school} 편제표에서 확인되지 않습니다. "
                 "공동교육과정이나 온라인학교 개설 여부를 확인해 보세요."
+            )
+        if unavailable_common:
+            names = ", ".join(item["subject"] for item in unavailable_common[:5])
+            lines.append(
+                f"일반고 공통 미개설\n{names}은(는) 조사된 모든 학교 편제표에서 확인되지 않습니다. "
+                "일반고 공통 미개설 — 공동교육과정·온라인학교 확인이 필요합니다."
             )
 
         lines.append(f"주의\n{result['caution']}")
@@ -581,7 +633,7 @@ class GraphRAGEngine:
             "mode": "need_more",
             "answer": message,
             "layer1": {"dept": "", "track": "", "categories": [], "total": 0},
-            "layer2": {"unit_count": 0, "units_sample": [], "subjects": [], "group_mentions": []},
+            "layer2": {"unit_count": 0, "units_sample": [], "subjects": [], "group_mentions": [], "dropped_terms": []},
             "layer3": {"school": "", "offering_count": 0, "available": [], "unavailable": [], "plan": []},
             "graph": {"nodes": [], "edges": []},
             "sources": [],

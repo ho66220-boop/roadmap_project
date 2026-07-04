@@ -37,7 +37,7 @@ SEM_COL = {"1-1": 6, "1-2": 7, "2-1": 8, "2-2": 9, "3-1": 10, "3-2": 11}
 MASTER = {norm(n): n for n in [
     "문학", "대수", "영어Ⅰ", "물리학", "화학", "생명과학", "지구과학",
     "중국어", "일본어", "음악", "논리와 사고", "세계사", "사회와 문화",
-    "확률과 통계", "미적분Ⅰ", "정보",
+    "확률과 통계", "미적분Ⅰ", "미적분Ⅱ", "정보", "전자기와 양자", "미술",
 ]}
 
 
@@ -323,6 +323,50 @@ class MetaNoteTest(unittest.TestCase):
         names = {cells.strip_markers(r.raw_name) for r in res.rows}
         self.assertNotIn(cells.strip_markers(note), names)
         self.assertTrue(any("운영할 수 있다" in m for m in res.meta_notes))
+
+
+class JointProgramSuffixTest(unittest.TestCase):
+    def test_joint_suffix_promotes_section_and_strips_from_name(self):
+        # 변경 3: '(온공)' 접미 -> 매칭 전 제거 + 해당 행 구분을 공동교육과정으로 승격
+        rows = [drow("학생선택", "과학", "일반", "물리학(온공)", **{"2-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(len(res.rows), 1)
+        row = res.rows[0]
+        self.assertEqual(row.official_name, "물리학")
+        self.assertEqual(row.section, "공동교육과정")
+
+    def test_non_joint_row_keeps_original_section(self):
+        rows = [drow("학생선택", "과학", "일반", "물리학", **{"2-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(res.rows[0].section, "학생선택")
+
+    def test_joint_suffix_with_trailing_footnote_marker_still_promotes(self):
+        # 약사고형: '(온공)' 뒤에 각주 마커(▲)가 덧붙는 경우도 승격돼야 함
+        rows = [drow("학생선택", "정보", "진로", "프로그래밍★(온공)▲", **{"2-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(res.rows[0].section, "공동교육과정")
+
+
+class HalfWidthLatinAliasTest(unittest.TestCase):
+    def test_half_width_misugbun_one_maps_to_roman_numeral(self):
+        rows = [drow("학생선택", "수학", "진로", "미적분I", **{"2-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(res.rows[0].official_name, "미적분Ⅰ")
+
+    def test_half_width_misugbun_two_maps_to_roman_numeral(self):
+        rows = [drow("학생선택", "수학", "진로", "미적분II", **{"2-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(res.rows[0].official_name, "미적분Ⅱ")
+
+    def test_typo_jeongi_maps_to_jeonja(self):
+        rows = [drow("학생선택", "과학", "진로", "전지기와 양자", **{"2-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(res.rows[0].official_name, "전자기와 양자")
+
+    def test_misul_school_designated_suffix_maps_to_misul(self):
+        rows = [drow("학교지정", "예술", "공통", "미술(학교 지정)", **{"1-1": 3})]
+        res = run_parse(rows)
+        self.assertEqual(res.rows[0].official_name, "미술")
 
 
 class CompatTest(unittest.TestCase):

@@ -80,9 +80,9 @@ def main() -> int:
     parser.add_argument("--curriculum", default=str(DEFAULT_CURRICULUM))
     parser.add_argument("--out", default=str(DEFAULT_OUT))
     parser.add_argument("--target-schools", default=str(DEFAULT_TARGET_SCHOOLS),
-                        help="노출 대상 학교 CSV(school 컬럼). 고1편제표 시트 필터에 사용")
-    parser.add_argument("--all", action="store_true",
-                        help="노출 필터를 끄고 전체 학교를 포함")
+                        help="--target-only 사용 시 노출 대상 학교 CSV(school 컬럼)")
+    parser.add_argument("--target-only", action="store_true",
+                        help="고1편제표를 target_schools.csv 학교만으로 필터(기본은 파싱된 전 학교 노출)")
     args = parser.parse_args()
 
     sources = {}
@@ -93,12 +93,12 @@ def main() -> int:
         sources[key] = openpyxl.load_workbook(path, read_only=True, data_only=True)
 
     allowed_schools = None
-    if not args.all:
+    if args.target_only:
         allowed_schools = load_target_schools(Path(args.target_schools))
         if not allowed_schools:
             print(f"노출 대상 학교 CSV가 비어있습니다: {args.target_schools}", file=sys.stderr)
             return 1
-        print(f"노출 필터 적용: {len(allowed_schools)}개교 (--all 로 해제 가능)")
+        print(f"노출 필터 적용: {len(allowed_schools)}개교 (기본은 전 학교 노출)")
 
     out = Workbook()
     out.remove(out.active)
