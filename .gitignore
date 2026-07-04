@@ -28,6 +28,8 @@ data/admission_results_*.csv
 !data/sample_*.csv
 !data/sample_*.xlsx
 !data/careernet_major_subjects.csv
+!data/sample/
+!data/sample/**
 
 # OS/editor
 .DS_Store

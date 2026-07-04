@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""과목마스터 매칭 (v1 이관, graph_rag.norm 재사용).
+"""과목마스터 매칭 (v1 이관, recommender.norm 재사용).
 
 과목마스터 시트: 정규화키 -> 공식과목명. 추천 자료에 없는 정규 편성 과목은
 SUPPLEMENT_SUBJECTS 로 보충한다.

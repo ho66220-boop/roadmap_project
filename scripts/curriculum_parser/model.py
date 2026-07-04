@@ -2,7 +2,7 @@
 """공용 데이터 모델과 20열 출력 스키마.
 
 앞 18열(인덱스 0~17)은 v1 산출물과 바이트 단위로 동일한 의미다. 소비자
-(graph_rag._load_curriculum=row[0..15], Code.gs=row[10+i], export_for_gsheet=전열)가
+(recommender._load_curriculum=row[0..15], Code.gs=row[10+i], export_for_gsheet=전열)가
 인덱스로 읽으므로 순서를 절대 바꾸지 말 것. 말미 2열[선택군ID, 택N]만 신규.
 """
 from __future__ import annotations

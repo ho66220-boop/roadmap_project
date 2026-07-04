@@ -55,7 +55,7 @@ var MAJOR_REPLACEMENTS = {
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('울산 고교 과목 로드맵 AI 상담')
+    .setTitle('울산 고교 과목 로드맵 상담')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 

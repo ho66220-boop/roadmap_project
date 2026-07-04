@@ -133,7 +133,7 @@ class DataStore:
     subject_master: dict[str, str] = field(default_factory=dict)                # 정규화키 -> 공식과목명
 
 
-class GraphRAGEngine:
+class RecommendationEngine:
     def __init__(self, workbook_path: Path, curriculum_path: Path | None = None):
         project_root = Path(__file__).resolve().parents[1]
         self.workbook_path = Path(workbook_path)

@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 from urllib.parse import urlparse
 
-from roadmap_rag.graph_rag import GraphRAGEngine
+from roadmap_engine.recommender import RecommendationEngine
 
 
 ROOT = Path(__file__).resolve().parent
@@ -17,7 +17,7 @@ DEFAULT_CURRICULUM = ROOT / "data" / "curriculum_g1_2026.xlsx"
 
 
 class ChatbotHandler(SimpleHTTPRequestHandler):
-    engine: GraphRAGEngine
+    engine: RecommendationEngine
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(APP_DIR), **kwargs)
@@ -70,7 +70,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        ChatbotHandler.engine = GraphRAGEngine(Path(args.workbook), Path(args.curriculum))
+        ChatbotHandler.engine = RecommendationEngine(Path(args.workbook), Path(args.curriculum))
     except FileNotFoundError as error:
         print(str(error), file=sys.stderr)
         return 1

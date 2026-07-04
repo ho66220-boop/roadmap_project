@@ -371,7 +371,7 @@ class HalfWidthLatinAliasTest(unittest.TestCase):
 
 class CompatTest(unittest.TestCase):
     def test_output_loads_into_engine(self):
-        from roadmap_rag.graph_rag import DataStore, GraphRAGEngine
+        from roadmap_engine.recommender import DataStore, RecommendationEngine
         from curriculum_parser.report import build_workbook
         rows = [
             drow("학교지정", "국어", "공통", "문학", **{"1-1": 4}),
@@ -387,7 +387,7 @@ class CompatTest(unittest.TestCase):
         tmp = Path(__file__).resolve().parent / "_tmp_compat.xlsx"
         wb.save(tmp)
         try:
-            engine = GraphRAGEngine.__new__(GraphRAGEngine)
+            engine = RecommendationEngine.__new__(RecommendationEngine)
             engine.store = DataStore()
             engine.curriculum_path = tmp
             engine._load_curriculum(engine.store)

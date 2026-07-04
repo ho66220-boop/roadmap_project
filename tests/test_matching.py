@@ -2,11 +2,11 @@
 import unittest
 from pathlib import Path
 
-from roadmap_rag.graph_rag import DataStore, GraphRAGEngine, Offering, UniTrackRow, norm
+from roadmap_engine.recommender import DataStore, RecommendationEngine, Offering, UniTrackRow, norm
 
 
 def make_engine(depts=(), master=(), schools=()):
-    engine = GraphRAGEngine.__new__(GraphRAGEngine)
+    engine = RecommendationEngine.__new__(RecommendationEngine)
     engine.store = DataStore(
         dept_recs={dept: {} for dept in depts},
         subject_master={norm(name): name for name in master},
@@ -119,7 +119,7 @@ class NewAliasExpansionTest(unittest.TestCase):
 
 class DroppedTermsLayer2Test(unittest.TestCase):
     def test_layer2_surfaces_dropped_terms_with_counts(self):
-        engine = GraphRAGEngine.__new__(GraphRAGEngine)
+        engine = RecommendationEngine.__new__(RecommendationEngine)
         engine.store = DataStore(
             subject_master={norm("물리학"): "물리학"},
             uni_tracks=[
@@ -153,7 +153,7 @@ class OfferingChoiceFieldsLoadTest(unittest.TestCase):
         tmp = Path(__file__).resolve().parent / "_tmp_offering_load.xlsx"
         wb.save(tmp)
         try:
-            engine = GraphRAGEngine.__new__(GraphRAGEngine)
+            engine = RecommendationEngine.__new__(RecommendationEngine)
             engine.store = DataStore()
             engine.curriculum_path = tmp
             engine._load_curriculum(engine.store)

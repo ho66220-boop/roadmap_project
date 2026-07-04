@@ -1,5 +1,7 @@
 # 울산 고교 진로 상담 시스템 — 과목 선택 3단계 대조
 
+![tests](https://github.com/ho66220-boop/roadmap_project/actions/workflows/test.yml/badge.svg)
+
 울산 지역 고등학교 1학년(2026년 입학)이 "목표 학과 + 우리 학교"를 입력하면, 필요한 과목을 **3단계로 대조**해 알려주는 진로 상담 시스템입니다. 웹앱은 배포 형태일 뿐이며, 핵심은 학교별 편제표를 구조화해 학과 추천과 결정론적으로 연결하는 데이터 파이프라인입니다.
 
 1. **학과 추천 과목** (커리어넷) — 목표 학과의 일반/진로/융합 선택과목
@@ -16,6 +18,13 @@
 - **추천 ↔ 개설 매칭**: 학과 추천 과목을 학교별 개설 과목과 대조. 미개설 노이즈 41종 제거, 택N 선택군은 "학교지정 / 택N 선택" 배지로 구분 노출
 - **검증**: 테스트 48/48 통과, Python↔GAS 이중 엔진 필드 단위 패리티 일치, 회귀 0
 - **실사용**: 현재 학원 상담교사들이 신입생 초도 상담에 활용 중
+- **효과**: 상담 1건당 자료 대조(학생 학교 편제표 확인 → 선호 학과 확인 → 해당 학과 과목 대조)에 걸리던 시간이 **최대 20분 → 검색 한 번, 1~2분**으로 단축
+
+## 화면
+
+| 상담 요약 | ① 학과 추천 + ② 대학별 강조 | ③ 편제표 대조 (택N 배지) |
+| --- | --- | --- |
+| ![상담 요약](assets/screenshot-summary.png) | ![추천 과목](assets/screenshot-recommend.png) | ![편제표 대조](assets/screenshot-match.png) |
 
 ## 아키텍처
 
@@ -35,13 +44,13 @@
                                                         차단되어 있어 GAS로 배포)
 ```
 
-추천 엔진은 두 벌이 **항상 동일 로직으로 유지**됩니다: [roadmap_rag/graph_rag.py](roadmap_rag/graph_rag.py)(Python, 개발·검증용)와 [apps_script/Code.gs](apps_script/Code.gs)(실배포용). 로직을 수정하면 양쪽에 반영하고 Node 모킹 하니스로 필드 단위 패리티를 검증합니다.
+추천 엔진은 두 벌이 **항상 동일 로직으로 유지**됩니다: [roadmap_engine/recommender.py](roadmap_engine/recommender.py)(Python, 개발·검증용)와 [apps_script/Code.gs](apps_script/Code.gs)(실배포용). 로직을 수정하면 양쪽에 반영하고 Node 모킹 하니스로 필드 단위 패리티를 검증합니다.
 
 ## 저장소 구조
 
 ```
 roadmap_project/
-  roadmap_rag/graph_rag.py       # 3단계 추천 엔진 (Python)
+  roadmap_engine/recommender.py  # 3단계 추천 엔진 (Python)
   server.py                      # 로컬 개발 서버 (표준 라이브러리)
   app/index.html                 # 로컬 상담 UI
   apps_script/                   # 실배포용 GAS 웹앱 (Code.gs + index.html + 배포 가이드)
@@ -61,7 +70,7 @@ roadmap_project/
 ### 요구 사항
 
 - Python 3.10+ / 의존성은 `openpyxl` 하나 (`pip install -r requirements.txt`)
-- **원본 데이터 필요**: `울산고교_과목로드맵_수정.xlsx`와 `울산 고교 편제표/` 폴더(40개교 신입생 3개년 편제표)가 저장소 상위 폴더에 있어야 합니다. 이 데이터는 저작권·개인정보 검토 문제로 **저장소에 포함되지 않으므로, 클론만으로는 실행할 수 없습니다.** (`data/sample_*.xlsx`는 구버전 엔진용 샘플로 현행 파이프라인과 호환되지 않습니다)
+- **원본 데이터 필요**: `울산고교_과목로드맵_수정.xlsx`와 `울산 고교 편제표/` 폴더(40개교 신입생 3개년 편제표)가 저장소 상위 폴더에 있어야 합니다. 이 데이터는 저작권·개인정보 검토 문제로 **저장소에 포함되지 않으므로, 실데이터로는 클론만으로 실행할 수 없습니다.**
 
 ### 파이프라인
 
@@ -73,6 +82,18 @@ python -m unittest discover -s tests   # 테스트 48개
 ```
 
 편제표가 바뀌지 않았다면 `server.py`만 실행하면 됩니다. 파서 산출물에는 검증요약·정제로그·택N그룹 시트가 함께 들어 있어 파싱 품질을 감사할 수 있습니다.
+
+### 샘플로 바로 실행해 보기
+
+원본 데이터 없이도 클론만으로 파이프라인 전체를 체험할 수 있도록, 완전 가상의 샘플 데이터셋(`data/sample/`)을 저장소에 포함했습니다.
+
+```powershell
+python scripts\make_sample_data.py     # (재생성용, 선택) 가상 학교·대학·학과 샘플 생성
+python scripts\build_curriculum.py --source-dir data\sample\curriculum_source --master data\sample\master.xlsx --config data\sample\sheetmap.csv --out data\sample\curriculum_g1_2026.xlsx
+python server.py --workbook data\sample\master.xlsx --curriculum data\sample\curriculum_g1_2026.xlsx
+```
+
+샘플 편제표에는 병합셀·택N·오염값이 의도적으로 포함되어 있어 파서 동작을 그대로 관찰할 수 있습니다. 데이터는 전부 가상입니다.
 
 ### 실서비스 배포 (Google Apps Script)
 

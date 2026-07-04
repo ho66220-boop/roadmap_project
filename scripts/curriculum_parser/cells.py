@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """셀 값 정제기 · 과목명 분리 · 마커/범례 · 유니코드 정규화.
 
-graph_rag.repair_text/norm 을 재사용(복제 금지). NFC 정규화만 이 층에서 추가.
+recommender.repair_text/norm 을 재사용(복제 금지). NFC 정규화만 이 층에서 추가.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from roadmap_rag.graph_rag import norm, repair_text  # noqa: E402,F401  (재사용)
+from roadmap_engine.recommender import norm, repair_text  # noqa: E402,F401  (재사용)
 
 from .model import CleanLog  # noqa: E402
 
