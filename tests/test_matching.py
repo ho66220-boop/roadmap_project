@@ -31,6 +31,14 @@ class MajorMatchingTest(unittest.TestCase):
         engine = make_engine(["의료경영학과", "경영학과", "글로벌경영학과"])
         self.assertEqual(engine._pick_major("경영학"), "경영학과")
 
+    def test_pick_major_rejects_mid_substring_mismatch(self):
+        # '마법학과'는 존재하지 않음 -> '법학과'(norm '법학'이 '마법학'의 중간일치)로
+        # 오매칭되면 안 된다. 접두 매칭이므로 빈 문자열을 돌려준다.
+        engine = make_engine(["법학과", "경영학과"])
+        self.assertEqual(engine._pick_major("마법학과"), "")
+        # 접두 매칭('경영학' -> '경영학과')은 여전히 유지되어야 한다.
+        self.assertEqual(engine._pick_major("경영학"), "경영학과")
+
     def test_pick_school_matches_partial_name(self):
         engine = make_engine(schools=["신정고", "울산여고"])
         self.assertEqual(engine._pick_school("신정고 1학년입니다"), "신정고")

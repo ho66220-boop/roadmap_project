@@ -499,7 +499,7 @@ function matchMajorText_(store, text) {
   var candidates = [];
   for (var j = 0; j < depts.length; j++) {
     var d = norm(depts[j]);
-    if (d.indexOf(textNorm) >= 0 || textNorm.indexOf(d) >= 0) candidates.push(depts[j]);
+    if (d.indexOf(textNorm) === 0 || textNorm.indexOf(d) === 0) candidates.push(depts[j]);
   }
   if (candidates.length) {
     // '경영학' -> '의료경영학과'가 아니라 '경영학과'를 고르도록 가장 짧은 후보 선택

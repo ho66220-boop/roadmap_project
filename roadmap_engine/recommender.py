@@ -493,7 +493,7 @@ class RecommendationEngine:
         candidates = []
         for dept in self.store.dept_recs:
             dept_norm = norm(dept)
-            if dept_norm in text_norm or text_norm in dept_norm:
+            if text_norm.startswith(dept_norm) or dept_norm.startswith(text_norm):
                 candidates.append(dept)
         if candidates:
             # '경영학' -> '의료경영학과'가 아니라 '경영학과'를 고르도록 가장 짧은 후보 선택
